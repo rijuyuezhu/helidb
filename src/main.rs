@@ -1,3 +1,13 @@
+use helidb::utils::Result;
+
+fn try_main() -> Result<()> {
+    Ok(())
+}
+
+
 fn main() {
-    println!("Hello, world!");
+    if let Err(e) = try_main() {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
 }
