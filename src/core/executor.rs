@@ -9,7 +9,8 @@ impl SQLExecutor {
     }
 
     pub fn execute_statement(&mut self, statement: &Statement) -> DBResult<()> {
-        Ok(())
+        Err(DBError::Other(format!("{:?}", statement)))
+        // Ok(())
     }
 
     pub fn execute_statements<'a, I>(&mut self, statements: I) -> Vec<DBError>
