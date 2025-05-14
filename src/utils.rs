@@ -1,20 +1,37 @@
+use sqlparser;
+
+use sqlparser::parser::ParserError;
+
 #[derive(Debug)]
-pub enum Error {
-    IO(std::io::Error),
-    Parse(String),
-    Execute(String),
+pub enum DBError {
+    IOError(std::io::Error),
+    ParserError(ParserError),
+    RequiredReportError(String),
     Other(String),
 }
-impl std::fmt::Display for Error {
+impl std::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use DBError::*;
         match self {
-            Error::IO(e) => write!(f, "IO error: {}", e),
-            Error::Parse(e) => write!(f, "Parse error: {}", e),
-            Error::Execute(e) => write!(f, "Execute error: {}", e),
-            Error::Other(e) => write!(f, "Other error: {}", e),
+            IOError(e) => write!(f, "IO error: {}", e),
+            ParserError(e) => write!(f, "Parser error: {}", e),
+            RequiredReportError(e) => write!(f, "Error: {}", e),
+            Other(e) => write!(f, "Error: {}", e),
         }
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for DBError {}
 
-pub type Result<T> = std::result::Result<T, Error>;
+impl From<std::io::Error> for DBError {
+    fn from(e: std::io::Error) -> Self {
+        DBError::IOError(e)
+    }
+}
+
+impl From<ParserError> for DBError {
+    fn from(e: ParserError) -> Self {
+        DBError::ParserError(e)
+    }
+}
+
+pub type DBResult<T> = Result<T, DBError>;
