@@ -7,6 +7,7 @@ pub enum DBError {
     IOError(std::io::Error),
     ParserError(ParserError),
     RequiredReportError(String),
+    UnsupportedOperationError(String),
     Other(String),
 }
 impl std::fmt::Display for DBError {
@@ -16,6 +17,7 @@ impl std::fmt::Display for DBError {
             IOError(e) => write!(f, "IO error: {}", e),
             ParserError(e) => write!(f, "Parser error: {}", e),
             RequiredReportError(e) => write!(f, "Error: {}", e),
+            UnsupportedOperationError(e) => write!(f, "Unsupported operation: {}", e),
             Other(e) => write!(f, "Error: {}", e),
         }
     }

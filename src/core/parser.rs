@@ -1,4 +1,4 @@
-use crate::utils::DBResult;
+use crate::error::DBResult;
 
 use sqlparser::ast::Statement;
 use sqlparser::dialect::GenericDialect;
