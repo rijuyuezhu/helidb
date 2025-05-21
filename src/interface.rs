@@ -1,58 +1,50 @@
 use crate::core::executor::SQLExecutor;
 use crate::core::parser::SQLParser;
-use crate::db_outputln;
-use std::cell::RefCell;
+use crate::error::{DBResult, join_result};
+use crate::utils::WriteHandle;
 use std::io::Write;
 
 #[derive(Default)]
 pub struct ExecConfig {
-    pub output_target: Option<RefCell<Box<dyn Write>>>,
-    pub err_output_target: Option<RefCell<Box<dyn Write>>>,
+    pub output_target: WriteHandle,
+    pub err_output_target: WriteHandle,
 }
 
 impl ExecConfig {
     pub fn new() -> Self {
-        ExecConfig {
-            output_target: None,
-            err_output_target: None,
-        }
+        ExecConfig::default()
     }
 
     pub fn output_target(&mut self, output_target: Box<dyn Write>) -> &mut Self {
-        self.output_target = Some(RefCell::new(output_target));
+        self.output_target.set(output_target);
         self
     }
 
     pub fn err_output_target(&mut self, err_output_target: Box<dyn Write>) -> &mut Self {
-        self.err_output_target = Some(RefCell::new(err_output_target));
+        self.err_output_target.set(err_output_target);
         self
     }
 
-    pub fn execute_sql(self, sql_statements: &str) -> bool {
+    pub fn execute_sql(&mut self, sql_statements: &str) -> DBResult<()> {
         let statements = {
             let parser = SQLParser::new();
-            match parser.parse(sql_statements) {
-                Ok(statements) => statements,
-                Err(e) => {
-                    db_outputln!(self.err_output_target, "{}", e);
-                    // return early if the parsing fails
-                    return false;
-                }
-            }
+            parser.parse(sql_statements)?
         };
-        let mut executor = SQLExecutor::new(self.output_target);
-        let mut has_failed = false;
+        let mut executor = SQLExecutor::new(self.output_target.clone());
 
+        let mut result = Ok(());
         for statement in statements.iter() {
-            if let Err(e) = executor.execute_statement(statement) {
-                db_outputln!(self.err_output_target, "{}", e);
-                has_failed = true;
-            }
+            result = join_result(result, executor.execute_statement(statement));
         }
-        has_failed
+        result
     }
 }
 
 pub fn execute_sql(sql_statements: &str) -> bool {
-    ExecConfig::new().execute_sql(sql_statements)
+    if let Err(e) = ExecConfig::new().execute_sql(sql_statements) {
+        print!("{}", e);
+        false
+    } else {
+        true
+    }
 }

@@ -3,14 +3,14 @@ use std::collections::{BTreeMap, HashMap};
 #[derive(Debug, Clone)]
 pub enum ValueNotNull {
     Int(i32),
-    VarChar(String),
+    Varchar(String),
 }
 
 pub type Value = Option<ValueNotNull>;
 #[derive(Debug, Clone, Copy)]
 pub enum ColumnTypeSpecific {
-    Int { display_width: usize },
-    VarChar { max_length: usize },
+    Int { display_width: Option<u64> },
+    Varchar { max_length: u64 },
 }
 
 #[derive(Debug, Clone)]
@@ -68,5 +68,17 @@ impl Database {
         Database {
             tables: HashMap::new(),
         }
+    }
+    pub fn create_table(
+        &mut self,
+        table_name: String,
+        columns: Vec<ColumnInfo>,
+    ) -> Result<(), String> {
+        if self.tables.contains_key(&table_name) {
+            return Err(format!("Table {} already exists", table_name));
+        }
+        let table = Table::new(columns);
+        self.tables.insert(table_name, table);
+        Ok(())
     }
 }
