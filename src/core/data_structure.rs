@@ -1,4 +1,7 @@
+use crate::error::{DBResult, DBSingleError};
 use std::collections::{BTreeMap, HashMap};
+
+use sqlparser::ast::{self, ColumnDef};
 
 #[derive(Debug, Clone)]
 pub enum ValueNotNull {
@@ -11,6 +14,31 @@ pub type Value = Option<ValueNotNull>;
 pub enum ColumnTypeSpecific {
     Int { display_width: Option<u64> },
     Varchar { max_length: u64 },
+}
+
+impl ColumnTypeSpecific {
+    pub fn from_column_def(def: &ColumnDef) -> DBResult<Self> {
+        fn varchar_length_convert(length: Option<ast::CharacterLength>) -> DBResult<u64> {
+            match length {
+                Some(ast::CharacterLength::IntegerLength { length, .. }) => Ok(length),
+                Some(ast::CharacterLength::Max) => Ok(u64::MAX),
+                None => Ok(u64::MAX),
+            }
+        }
+
+        Ok(match def.data_type {
+            ast::DataType::Int(width) => ColumnTypeSpecific::Int {
+                display_width: width,
+            },
+            ast::DataType::Varchar(length) => ColumnTypeSpecific::Varchar {
+                max_length: varchar_length_convert(length)?,
+            },
+            _ => Err(DBSingleError::Other(format!(
+                "unsupported type {:?}",
+                def.data_type
+            )))?,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -69,16 +97,18 @@ impl Database {
             tables: HashMap::new(),
         }
     }
-    pub fn create_table(
-        &mut self,
-        table_name: String,
-        columns: Vec<ColumnInfo>,
-    ) -> Result<(), String> {
-        if self.tables.contains_key(&table_name) {
-            return Err(format!("Table {} already exists", table_name));
-        }
-        let table = Table::new(columns);
+    pub fn create_table(&mut self, table_name: String, column_info: Vec<ColumnInfo>) {
+        let table = Table::new(column_info);
         self.tables.insert(table_name, table);
-        Ok(())
+    }
+
+    pub fn drop_table(&mut self, table_name: &str) -> DBResult<()> {
+        match self.tables.remove(table_name) {
+            Some(_) => Ok(()),
+            None => Err(DBSingleError::Other(format!(
+                "table {} not found",
+                table_name
+            )))?,
+        }
     }
 }

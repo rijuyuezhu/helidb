@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use crate::core::data_structure::{ColumnInfo, Database};
-use crate::error::{DBError, DBResult, DBSingleError};
+use crate::error::{DBError, DBResult, DBSingleError, join_result};
 use crate::utils::WriteHandle;
 use sqlparser::ast;
 use sqlparser::ast::{CreateTable, Delete, Insert, Query, Statement};
@@ -25,64 +25,64 @@ impl SQLExecutor {
     }
 
     pub fn execute_create_table(&mut self, create_table: &CreateTable) -> DBResult<()> {
-        fn varchar_convert(length: Option<ast::CharacterLength>) -> Result<u64, DBError> {
-            match length {
-                Some(ast::CharacterLength::IntegerLength { length, .. }) => Ok(length),
-                Some(ast::CharacterLength::Max) => Ok(u64::MAX),
-                None => Ok(u64::MAX),
-            }
-        }
-
         let table_name = create_table.name.to_string();
         if self.database.tables.contains_key(&table_name) {
             return Err(DBSingleError::Other("table already exists".into()))?;
         }
-        let column_info = create_table
-            .columns
-            .iter()
-            .map(|col| -> DBResult<ColumnInfo> {
-                let col_name = col.name.to_string();
-                let type_specific = match col.data_type {
-                    ast::DataType::Int(width) => ColumnTypeSpecific::Int {
-                        display_width: width,
-                    },
-                    ast::DataType::Varchar(length) => ColumnTypeSpecific::Varchar {
-                        max_length: varchar_convert(length)?,
-                    },
-                    _ => {
-                        return Err(DBSingleError::Other("unsupported column type".into()))?;
-                    }
-                };
-                Ok(ColumnInfo {
-                    name: col_name,
-                    type_specific,
-                })
-            })
-            .collect::<Vec<_>>();
-        todo!();
-        Ok(())
+        let mut column_info = vec![];
+        let mut result = Ok(());
+        for col in &create_table.columns {
+            let name = col.name.to_string();
+            let type_specific = match ColumnTypeSpecific::from_column_def(col) {
+                Ok(type_specific) => type_specific,
+                Err(e) => {
+                    result = join_result(result, Err(e));
+                    continue;
+                }
+            };
+            column_info.push(ColumnInfo {
+                name,
+                type_specific,
+            });
+        }
+        self.database.create_table(table_name, column_info);
+        result
     }
 
     pub fn execute_drop_table(&mut self, drop_statement: &Statement) -> DBResult<()> {
-        Err(DBSingleError::UnsupportedOPError(String::from(
-            "drop table",
-        )))?
+        let Statement::Drop {
+            object_type, names, ..
+        } = drop_statement
+        else {
+            panic!()
+        };
+
+        if object_type != &ast::ObjectType::Table {
+            return Err(DBSingleError::Other("only table drop is supported".into()))?;
+        }
+        let mut result = Ok(());
+        for name in names {
+            if let Err(e) = self.database.drop_table(&name.to_string()) {
+                result = join_result(result, Err(e));
+            }
+        }
+        result
     }
 
     pub fn execute_insert(&mut self, insert: &Insert) -> DBResult<()> {
-        Err(DBSingleError::UnsupportedOPError(String::from("insert")))?
+        Err(DBSingleError::UnsupportedOPError("insert".into()))?
     }
 
     pub fn execute_query(&mut self, query: &Query) -> DBResult<()> {
-        Err(DBSingleError::UnsupportedOPError(String::from("query")))?
+        Err(DBSingleError::UnsupportedOPError("query".into()))?
     }
 
     pub fn execute_update(&mut self, update_statement: &Statement) -> DBResult<()> {
-        Err(DBSingleError::UnsupportedOPError(String::from("update")))?
+        Err(DBSingleError::UnsupportedOPError("update".into()))?
     }
 
     pub fn execute_delete(&mut self, delete: &Delete) -> DBResult<()> {
-        Err(DBSingleError::UnsupportedOPError(String::from("delete")))?
+        Err(DBSingleError::UnsupportedOPError("delete".into()))?
     }
 
     pub fn execute_statement(&mut self, statement: &Statement) -> DBResult<()> {
@@ -94,9 +94,7 @@ impl SQLExecutor {
             Statement::Query(query) => self.execute_query(query),
             update_statement @ Statement::Update { .. } => self.execute_update(update_statement),
             Statement::Delete(delete) => self.execute_delete(delete),
-            _ => Err(DBSingleError::UnsupportedOPError(String::from(
-                "main operator",
-            )))?,
+            _ => Err(DBSingleError::UnsupportedOPError("main operator".into()))?,
         }
     }
 
