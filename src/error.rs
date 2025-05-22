@@ -4,7 +4,7 @@ use sqlparser::parser::ParserError;
 
 #[derive(Debug)]
 pub enum DBSingleError {
-    IOError(std::io::Error),
+    FmtError(std::fmt::Error),
     RequiredError(String),
     UnsupportedOPError(String),
     OtherError(String),
@@ -14,7 +14,7 @@ impl std::fmt::Display for DBSingleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use DBSingleError::*;
         match self {
-            IOError(e) => write!(f, "IOError: {}", e),
+            FmtError(e) => write!(f, "FmtError: {}", e),
             RequiredError(e) => write!(f, "Error: {}", e),
             UnsupportedOPError(e) => write!(f, "UnsupportedOPError: {}", e),
             OtherError(e) => write!(f, "OtherError: {}", e),
@@ -24,9 +24,9 @@ impl std::fmt::Display for DBSingleError {
 
 impl std::error::Error for DBSingleError {}
 
-impl From<std::io::Error> for DBSingleError {
-    fn from(e: std::io::Error) -> Self {
-        DBSingleError::IOError(e)
+impl From<std::fmt::Error> for DBSingleError {
+    fn from(e: std::fmt::Error) -> Self {
+        DBSingleError::FmtError(e)
     }
 }
 

@@ -3,7 +3,7 @@ use crate::core::data_structure::{ColumnInfo, ColumnTypeSpecific};
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
-impl SQLExecutor {
+impl SQLExecutor<'_> {
     pub(super) fn execute_create_table(&mut self, create_table: &ast::CreateTable) -> DBResult<()> {
         let table_name = create_table.name.to_string();
         if self.database.tables.contains_key(&table_name) {
@@ -18,7 +18,15 @@ impl SQLExecutor {
             for opt in &col.options {
                 match opt.option {
                     ast::ColumnOption::NotNull => nullable = false,
-                    ast::ColumnOption::Unique { .. } => unique = true,
+                    ast::ColumnOption::Unique {
+                        is_primary: true, ..
+                    } => {
+                        unique = true;
+                        nullable = false;
+                    }
+                    ast::ColumnOption::Unique {
+                        is_primary: false, ..
+                    } => unique = true,
                     _ => Err(DBSingleError::OtherError(format!(
                         "unsupported column option {:?}",
                         opt.option

@@ -2,7 +2,7 @@ use super::SQLExecutor;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
-impl SQLExecutor {
+impl SQLExecutor<'_> {
     pub(super) fn execute_drop_table(&mut self, drop_statement: &ast::Statement) -> DBResult<()> {
         let ast::Statement::Drop {
             object_type, names, ..

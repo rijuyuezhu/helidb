@@ -1,34 +1,29 @@
 use std::cell::RefCell;
-use std::io::{self, Write};
+use std::fmt::Write;
 use std::rc::Rc;
 
 #[derive(Default, Clone)]
-pub struct WriteHandle(Option<Rc<RefCell<Box<dyn std::io::Write>>>>);
+pub struct WriteHandle<'a>(Option<Rc<RefCell<Box<dyn Write + 'a>>>>);
 
-impl WriteHandle {
+impl<'a> WriteHandle<'a> {
     pub fn new() -> Self {
         WriteHandle(None)
     }
-    pub fn from(writer: Box<dyn Write>) -> Self {
+    pub fn from(writer: Box<dyn Write + 'a>) -> Self {
         WriteHandle(Some(Rc::new(RefCell::new(writer))))
     }
-    pub fn set(&mut self, writer: Box<dyn Write>) {
+    pub fn set(&mut self, writer: Box<dyn Write + 'a>) {
         self.0 = Some(Rc::new(RefCell::new(writer)));
     }
 }
 
-impl std::io::Write for WriteHandle {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        match self.0 {
-            Some(ref writer) => writer.borrow_mut().write(buf),
-            None => io::stdout().write(buf),
-        }
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        match self.0 {
-            Some(ref writer) => writer.borrow_mut().flush(),
-            None => io::stdout().flush(),
+impl Write for WriteHandle<'_> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        if let Some(ref writer) = self.0 {
+            writer.borrow_mut().write_str(s)
+        } else {
+            print!("{}", s);
+            Ok(())
         }
     }
 }

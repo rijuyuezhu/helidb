@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::SQLExecutor;
 use crate::core::data_structure::{Value, ValueNotNull};
 use crate::error::{DBResult, DBSingleError};
@@ -51,7 +53,7 @@ fn insert_parse_query(query: &ast::Query) -> DBResult<Vec<Vec<Value>>> {
     insert_parse_values(values)
 }
 
-impl SQLExecutor {
+impl SQLExecutor<'_> {
     pub(super) fn execute_insert(&mut self, insert: &ast::Insert) -> DBResult<()> {
         let table = &insert.table;
         let ast::TableObject::TableName(table_name) = table else {
@@ -75,29 +77,24 @@ impl SQLExecutor {
             .iter()
             .map(|c| c.to_string())
             .collect::<Vec<_>>();
-        let num_column = table.column_info.len();
-        if !columns_given.is_empty() && columns_given.len() != num_column {
-            Err(DBSingleError::OtherError(format!(
-                "Given columns length {} not match table columns length {}",
-                columns_given.len(),
-                table.column_info.len()
-            )))?
-        }
+
+        let num_insert_col = columns_given.len();
 
         let rows = insert_parse_query(query)?;
         for mut row in rows {
             let new_row = if columns_given.is_empty() {
                 row
             } else {
-                if row.len() != num_column {
+                if row.len() != num_insert_col {
                     Err(DBSingleError::OtherError(format!(
-                        "row length {} not match columns length {}",
-                        row.len(),
-                        columns_given.len()
+                        "number of columns given {} does not match number of values {}",
+                        num_insert_col,
+                        row.len()
                     )))?
                 }
-                let mut new_row = Vec::with_capacity(num_column);
-                for i in 0..num_column {
+                let mut used_index = HashSet::new();
+                let mut new_row = vec![None; table.column_info.len()];
+                for i in 0..num_insert_col {
                     let column_name = &columns_given[i];
                     let Some(index) = table.get_column_index(column_name) else {
                         Err(DBSingleError::OtherError(format!(
@@ -105,7 +102,14 @@ impl SQLExecutor {
                             column_name
                         )))?
                     };
-                    std::mem::swap(&mut new_row[i], &mut row[index]);
+                    if used_index.contains(&index) {
+                        Err(DBSingleError::OtherError(format!(
+                            "column {} is duplicated",
+                            column_name
+                        )))?
+                    }
+                    used_index.insert(index);
+                    std::mem::swap(&mut new_row[index], &mut row[i]);
                 }
                 drop(row);
                 new_row

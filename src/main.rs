@@ -1,4 +1,4 @@
-use simple_db::execute_sql;
+use simple_db::{SQLExecConfig, utils::WriteHandle};
 use std::env;
 
 fn main() {
@@ -8,5 +8,15 @@ fn main() {
         return;
     }
     let sql_statements = std::fs::read_to_string(&args[1]).expect("Unable to read file");
-    execute_sql(&sql_statements);
+    let mut output = String::new();
+    let mut err_output = String::new();
+    let no_error = SQLExecConfig::new()
+        .output_target(WriteHandle::from(Box::new(&mut output)))
+        .err_output_target(WriteHandle::from(Box::new(&mut err_output)))
+        .execute_sql(&sql_statements);
+    if no_error {
+        print!("{}", output);
+    } else {
+        print!("{}", err_output);
+    }
 }

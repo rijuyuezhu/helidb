@@ -4,7 +4,6 @@ mod drop_table;
 mod insert;
 mod query;
 mod update;
-mod condition;
 
 use crate::core::data_structure::Database;
 use crate::error::{DBResult, DBSingleError};
@@ -12,14 +11,14 @@ use crate::utils::WriteHandle;
 use sqlparser::ast;
 
 #[derive(Default)]
-pub struct SQLExecutor {
+pub struct SQLExecutor<'a> {
     database: Database,
-    output_target: WriteHandle,
+    output_target: WriteHandle<'a>,
     output_count: usize,
 }
 
-impl SQLExecutor {
-    pub fn new(output_target: WriteHandle) -> Self {
+impl<'a> SQLExecutor<'a> {
+    pub fn new(output_target: WriteHandle<'a>) -> Self {
         SQLExecutor {
             database: Database::new(),
             output_target,
@@ -28,9 +27,9 @@ impl SQLExecutor {
     }
 }
 
-impl SQLExecutor {
+impl SQLExecutor<'_> {
     pub fn execute_statement(&mut self, statement: &ast::Statement) -> DBResult<()> {
-        println!("{:#?}\n", statement);
+        // println!("{:#?}\n", statement);
         use ast::Statement::*;
         match statement {
             CreateTable(create_table) => self.execute_create_table(create_table),
