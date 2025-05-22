@@ -111,4 +111,12 @@ impl Database {
             )))?,
         }
     }
+
+    pub fn get_table(&self, table_name: &str) -> Option<&Table> {
+        self.tables.get(table_name)
+    }
+
+    pub fn get_table_mut(&mut self, table_name: &str) -> Option<&mut Table> {
+        self.tables.get_mut(table_name)
+    }
 }
