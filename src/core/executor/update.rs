@@ -2,7 +2,7 @@ use super::SQLExecutor;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
-impl SQLExecutor<'_> {
+impl SQLExecutor<'_, '_> {
     pub(super) fn execute_update(&mut self, update_statement: &ast::Statement) -> DBResult<()> {
         let ast::Statement::Update {
             table,

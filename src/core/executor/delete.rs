@@ -2,7 +2,7 @@ use super::SQLExecutor;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
-impl SQLExecutor<'_> {
+impl SQLExecutor<'_, '_> {
     pub(super) fn execute_delete(&mut self, delete: &ast::Delete) -> DBResult<()> {
         let table = match &delete.from {
             ast::FromTable::WithFromKeyword(table) => table,

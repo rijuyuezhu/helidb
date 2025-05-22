@@ -1,10 +1,10 @@
 use super::SQLExecutor;
 use crate::core::data_structure::{ColumnInfo, ColumnTypeSpecific, Table, Value};
 use crate::error::{DBResult, DBSingleError};
-use sqlparser::ast;
+use sqlparser::ast::{self, Spanned};
 use std::fmt::Write;
 
-impl SQLExecutor<'_> {
+impl SQLExecutor<'_, '_> {
     pub(super) fn execute_query(&mut self, query: &ast::Query) -> DBResult<()> {
         let ast::SetExpr::Select(select) = query.body.as_ref() else {
             Err(DBSingleError::UnsupportedOPError(
@@ -54,7 +54,10 @@ impl SQLExecutor<'_> {
                     }
                 }
                 UnnamedExpr(expr) => {
-                    let column_name = expr.to_string();
+                    let expr_span = expr.span();
+                    let column_name = self
+                        .get_content_from_span(expr_span)
+                        .unwrap_or_else(|| expr.to_string());
                     new_column_infos.push(ColumnInfo {
                         name: column_name,
                         nullable: false,
@@ -85,6 +88,18 @@ impl SQLExecutor<'_> {
                 new_table.insert_row_unchecked(new_row)?;
                 DBResult::Ok(())
             })?;
+
+        let order_by = query.order_by.as_ref().map(|x| &x.kind);
+        if let Some(ast::OrderByKind::Expressions(order_by_exprs)) = order_by {
+            let keys = order_by_exprs.iter()
+                .map(|order_by_expr| {
+                    let expr = &order_by_expr.expr;
+                    let is_asc = order_by_expr.options.asc.unwrap_or(true);
+                    (expr, is_asc)
+                }).collect::<Vec<_>>();
+            new_table.order_by(&keys)?;
+        }
+
         if self.output_count > 0 {
             writeln!(self.output_target)?;
         }

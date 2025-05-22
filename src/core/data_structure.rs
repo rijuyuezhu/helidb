@@ -195,8 +195,16 @@ impl Table {
                             LtEq => Some(ValueNotNull::Int(if left <= right { 1 } else { 0 })),
                             Eq => Some(ValueNotNull::Int(if left == right { 1 } else { 0 })),
                             NotEq => Some(ValueNotNull::Int(if left != right { 1 } else { 0 })),
-                            And => Some(ValueNotNull::Int(if left != 0 && right != 0 { 1 } else { 0 })),
-                            Or => Some(ValueNotNull::Int(if left != 0 || right != 0 { 1 } else { 0 })),
+                            And => Some(ValueNotNull::Int(if left != 0 && right != 0 {
+                                1
+                            } else {
+                                0
+                            })),
+                            Or => Some(ValueNotNull::Int(if left != 0 || right != 0 {
+                                1
+                            } else {
+                                0
+                            })),
                             _ => Err(DBSingleError::UnsupportedOPError(format!(
                                 "unsupported binary operator {:?}",
                                 op
@@ -310,6 +318,39 @@ impl Table {
             .filter(|(i, _)| !row_idx.contains(i))
             .map(|(_, v)| v)
             .collect();
+        Ok(())
+    }
+
+    pub fn order_by(&mut self, keys: &[(&ast::Expr, bool)]) -> DBResult<()> {
+        let any_self = unsafe { &*(self as *const Table) };
+        self.rows.sort_by(|a, b| {
+            for &(expr, is_asc) in keys {
+                let a_value = any_self.calc_expr_for_row(a, expr).unwrap();
+                let b_value = any_self.calc_expr_for_row(b, expr).unwrap();
+                let ord = match (&a_value, &b_value) {
+                    (Some(ValueNotNull::Int(a)), Some(ValueNotNull::Int(b))) => {
+                        if is_asc {
+                            a.cmp(b)
+                        } else {
+                            b.cmp(a)
+                        }
+                    }
+                    (Some(ValueNotNull::Varchar(a)), Some(ValueNotNull::Varchar(b))) => {
+                        if is_asc {
+                            a.cmp(b)
+                        } else {
+                            b.cmp(a)
+                        }
+                    }
+                    (None, None) => std::cmp::Ordering::Equal,
+                    _ => panic!("Should not happen: {:?} {:?}", a_value, b_value),
+                };
+                if ord != std::cmp::Ordering::Equal {
+                    return ord;
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
         Ok(())
     }
 }

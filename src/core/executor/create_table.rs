@@ -3,7 +3,7 @@ use crate::core::data_structure::{ColumnInfo, ColumnTypeSpecific};
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
-impl SQLExecutor<'_> {
+impl SQLExecutor<'_, '_> {
     pub(super) fn execute_create_table(&mut self, create_table: &ast::CreateTable) -> DBResult<()> {
         let table_name = create_table.name.to_string();
         if self.database.tables.contains_key(&table_name) {

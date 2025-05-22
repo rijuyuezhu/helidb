@@ -53,7 +53,7 @@ fn insert_parse_query(query: &ast::Query) -> DBResult<Vec<Vec<Value>>> {
     insert_parse_values(values)
 }
 
-impl SQLExecutor<'_> {
+impl SQLExecutor<'_, '_> {
     pub(super) fn execute_insert(&mut self, insert: &ast::Insert) -> DBResult<()> {
         let table = &insert.table;
         let ast::TableObject::TableName(table_name) = table else {
