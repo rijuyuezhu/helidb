@@ -1,12 +1,20 @@
 use crate::error::{DBResult, DBSingleError};
-use std::collections::{BTreeMap, HashMap};
-
 use sqlparser::ast::{self, ColumnDef};
+use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValueNotNull {
     Int(i32),
     Varchar(String),
+}
+
+impl std::fmt::Display for ValueNotNull {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValueNotNull::Int(i) => write!(f, "{}", i),
+            ValueNotNull::Varchar(s) => write!(f, "{}", s),
+        }
+    }
 }
 
 pub type Value = Option<ValueNotNull>;
@@ -18,7 +26,7 @@ pub enum ColumnTypeSpecific {
 
 impl ColumnTypeSpecific {
     pub fn from_column_def(def: &ColumnDef) -> DBResult<Self> {
-        fn varchar_length_convert(length: Option<ast::CharacterLength>) -> DBResult<u64> {
+        pub fn varchar_length_convert(length: Option<ast::CharacterLength>) -> DBResult<u64> {
             match length {
                 Some(ast::CharacterLength::IntegerLength { length, .. }) => Ok(length),
                 Some(ast::CharacterLength::Max) => Ok(u64::MAX),
@@ -33,7 +41,7 @@ impl ColumnTypeSpecific {
             ast::DataType::Varchar(length) => ColumnTypeSpecific::Varchar {
                 max_length: varchar_length_convert(length)?,
             },
-            _ => Err(DBSingleError::Other(format!(
+            _ => Err(DBSingleError::OtherError(format!(
                 "unsupported type {:?}",
                 def.data_type
             )))?,
@@ -44,28 +52,30 @@ impl ColumnTypeSpecific {
 #[derive(Debug, Clone)]
 pub struct ColumnInfo {
     pub name: String,
+    pub nullable: bool,
+    pub unique: bool,
     pub type_specific: ColumnTypeSpecific,
 }
 
 #[derive(Debug, Clone)]
 pub struct Table {
     /// line number to line content
-    pub rows: BTreeMap<usize, Vec<Value>>,
+    pub rows: Vec<Vec<Value>>,
 
-    pub columns: Vec<ColumnInfo>,
+    pub column_info: Vec<ColumnInfo>,
     pub column_rmap: HashMap<String, usize>,
 }
 
 impl Table {
-    pub fn new(columns: Vec<ColumnInfo>) -> Self {
-        let column_rmap = columns
+    pub fn new(column_info: Vec<ColumnInfo>) -> Self {
+        let column_rmap = column_info
             .iter()
             .enumerate()
             .map(|(i, col)| (col.name.clone(), i))
             .collect();
         Table {
-            rows: BTreeMap::new(),
-            columns,
+            rows: Vec::new(),
+            column_info,
             column_rmap,
         }
     }
@@ -74,15 +84,40 @@ impl Table {
         self.column_rmap.get(column_name).copied()
     }
 
-    pub fn get_column_info(&self, column_name: &str) -> Option<&ColumnInfo> {
-        self.get_column_index(column_name)
-            .map(|index| &self.columns[index])
+    pub fn get_column_info(&self, column_index: usize) -> &ColumnInfo {
+        &self.column_info[column_index]
     }
-    pub fn get_row(&self, row_number: usize) -> Option<&Vec<Value>> {
-        self.rows.get(&row_number)
-    }
-    pub fn get_row_mut(&mut self, row_number: usize) -> Option<&mut Vec<Value>> {
-        self.rows.get_mut(&row_number)
+    pub fn insert_row(&mut self, row: Vec<Value>) -> DBResult<usize> {
+        let row_number = self.rows.len();
+        if row.len() != self.column_info.len() {
+            Err(DBSingleError::OtherError(format!(
+                "row length {} not match columns num {}",
+                row.len(),
+                self.column_info.len()
+            )))?
+        }
+        for i in 0..self.column_info.len() {
+            if !self.column_info[i].nullable && row[i].is_none() {
+                Err(DBSingleError::RequiredError(format!(
+                    "Field '{}' doesn't have a default value",
+                    self.column_info[i].name
+                )))?
+            }
+        }
+        for i in 0..self.column_info.len() {
+            if self.column_info[i].unique {
+                for j in 0..row_number {
+                    if self.rows[j][i] == row[i] {
+                        Err(DBSingleError::OtherError(format!(
+                            "Duplicate entry '{}' for key 'PRIMARY'",
+                            row[i].as_ref().unwrap(),
+                        )))?
+                    }
+                }
+            }
+        }
+        self.rows.push(row);
+        Ok(row_number)
     }
 }
 
@@ -105,7 +140,7 @@ impl Database {
     pub fn drop_table(&mut self, table_name: &str) -> DBResult<()> {
         match self.tables.remove(table_name) {
             Some(_) => Ok(()),
-            None => Err(DBSingleError::Other(format!(
+            None => Err(DBSingleError::OtherError(format!(
                 "table {} not found",
                 table_name
             )))?,

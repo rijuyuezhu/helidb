@@ -3,4 +3,4 @@ pub mod error;
 pub mod interface;
 pub mod utils;
 
-pub use interface::{ExecConfig, execute_sql};
+pub use interface::{SQLExecConfig, execute_sql};

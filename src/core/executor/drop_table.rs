@@ -1,5 +1,5 @@
 use super::SQLExecutor;
-use crate::error::{DBResult, DBSingleError, join_result};
+use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
 impl SQLExecutor {
@@ -8,18 +8,18 @@ impl SQLExecutor {
             object_type, names, ..
         } = drop_statement
         else {
-            panic!()
+            panic!("Should not reach here");
         };
 
         if object_type != &ast::ObjectType::Table {
-            return Err(DBSingleError::Other("only table drop is supported".into()))?;
+            return Err(DBSingleError::OtherError(
+                "only table drop is supported".into(),
+            ))?;
         }
-        let mut result = Ok(());
+
         for name in names {
-            if let Err(e) = self.database.drop_table(&name.to_string()) {
-                result = join_result(result, Err(e));
-            }
+            self.database.drop_table(&name.to_string())?;
         }
-        result
+        Ok(())
     }
 }

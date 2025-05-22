@@ -1,12 +1,12 @@
 mod create_table;
+mod delete;
 mod drop_table;
 mod insert;
 mod query;
 mod update;
-mod delete;
 
 use crate::core::data_structure::Database;
-use crate::error::{DBError, DBResult, DBSingleError};
+use crate::error::{DBResult, DBSingleError};
 use crate::utils::WriteHandle;
 use sqlparser::ast;
 
@@ -14,6 +14,7 @@ use sqlparser::ast;
 pub struct SQLExecutor {
     database: Database,
     output_target: WriteHandle,
+    output_count: usize,
 }
 
 impl SQLExecutor {
@@ -21,6 +22,7 @@ impl SQLExecutor {
         SQLExecutor {
             database: Database::new(),
             output_target,
+            output_count: 0,
         }
     }
 }
@@ -28,26 +30,15 @@ impl SQLExecutor {
 impl SQLExecutor {
     pub fn execute_statement(&mut self, statement: &ast::Statement) -> DBResult<()> {
         println!("{:#?}\n", statement);
+        use ast::Statement::*;
         match statement {
-            ast::Statement::CreateTable(create_table) => self.execute_create_table(create_table),
-            drop_statement @ ast::Statement::Drop { .. } => self.execute_drop_table(drop_statement),
-            ast::Statement::Insert(insert) => self.execute_insert(insert),
-            ast::Statement::Query(query) => self.execute_query(query),
-            update_statement @ ast::Statement::Update { .. } => {
-                self.execute_update(update_statement)
-            }
-            ast::Statement::Delete(delete) => self.execute_delete(delete),
+            CreateTable(create_table) => self.execute_create_table(create_table),
+            Drop { .. } => self.execute_drop_table(statement),
+            Insert(insert) => self.execute_insert(insert),
+            Query(query) => self.execute_query(query),
+            Update { .. } => self.execute_update(statement),
+            Delete(delete) => self.execute_delete(delete),
             _ => Err(DBSingleError::UnsupportedOPError("main operator".into()))?,
         }
-    }
-
-    pub fn execute_statements<'b, I>(&mut self, statements: I) -> Vec<DBError>
-    where
-        I: IntoIterator<Item = &'b ast::Statement>,
-    {
-        statements
-            .into_iter()
-            .flat_map(|statement| self.execute_statement(statement).err())
-            .collect()
     }
 }

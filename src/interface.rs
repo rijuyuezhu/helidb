@@ -5,14 +5,14 @@ use crate::utils::WriteHandle;
 use std::io::Write;
 
 #[derive(Default)]
-pub struct ExecConfig {
+pub struct SQLExecConfig {
     pub output_target: WriteHandle,
     pub err_output_target: WriteHandle,
 }
 
-impl ExecConfig {
+impl SQLExecConfig {
     pub fn new() -> Self {
-        ExecConfig::default()
+        SQLExecConfig::default()
     }
 
     pub fn output_target(&mut self, output_target: Box<dyn Write>) -> &mut Self {
@@ -25,7 +25,7 @@ impl ExecConfig {
         self
     }
 
-    pub fn execute_sql(&mut self, sql_statements: &str) -> DBResult<()> {
+    pub fn execute(&mut self, sql_statements: &str) -> DBResult<()> {
         let statements = {
             let parser = SQLParser::new();
             parser.parse(sql_statements)?
@@ -41,7 +41,7 @@ impl ExecConfig {
 }
 
 pub fn execute_sql(sql_statements: &str) -> bool {
-    if let Err(e) = ExecConfig::new().execute_sql(sql_statements) {
+    if let Err(e) = SQLExecConfig::new().execute(sql_statements) {
         print!("{}", e);
         false
     } else {
