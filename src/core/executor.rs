@@ -4,6 +4,7 @@ mod drop_table;
 mod insert;
 mod query;
 mod update;
+mod condition;
 
 use crate::core::data_structure::Database;
 use crate::error::{DBResult, DBSingleError};

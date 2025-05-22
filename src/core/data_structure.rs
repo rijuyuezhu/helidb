@@ -1,5 +1,5 @@
 use crate::error::{DBResult, DBSingleError};
-use sqlparser::ast::{self, ColumnDef};
+use sqlparser::ast;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,7 +25,7 @@ pub enum ColumnTypeSpecific {
 }
 
 impl ColumnTypeSpecific {
-    pub fn from_column_def(def: &ColumnDef) -> DBResult<Self> {
+    pub fn from_column_def(def: &ast::ColumnDef) -> DBResult<Self> {
         pub fn varchar_length_convert(length: Option<ast::CharacterLength>) -> DBResult<u64> {
             match length {
                 Some(ast::CharacterLength::IntegerLength { length, .. }) => Ok(length),
@@ -87,6 +87,127 @@ impl Table {
     pub fn get_column_info(&self, column_index: usize) -> &ColumnInfo {
         &self.column_info[column_index]
     }
+
+    fn calc_expr_for_row(&self, row: &[Value], expr: &ast::Expr) -> DBResult<Value> {
+        use ast::Expr::*;
+        match expr {
+            Identifier(name) => {
+                let Some(index) = self.get_column_index(&name.to_string()) else {
+                    Err(DBSingleError::OtherError(format!(
+                        "column {} not found",
+                        name
+                    )))?
+                };
+                Ok(row[index].clone())
+            }
+            IsFalse(expr) => {
+                let value = self.calc_expr_for_row(row, expr)?;
+                Ok(match value {
+                    Some(ValueNotNull::Int(i)) if i != 0 => Some(ValueNotNull::Int(1)),
+                    _ => Some(ValueNotNull::Int(0)),
+                })
+            }
+            IsTrue(expr) => {
+                let value = self.calc_expr_for_row(row, expr)?;
+                Ok(match value {
+                    Some(ValueNotNull::Int(i)) if i != 0 => Some(ValueNotNull::Int(0)),
+                    _ => Some(ValueNotNull::Int(1)),
+                })
+            }
+            IsNotFalse(expr) => {
+                let value = self.calc_expr_for_row(row, expr)?;
+                Ok(match value {
+                    Some(ValueNotNull::Int(i)) if i != 0 => Some(ValueNotNull::Int(0)),
+                    _ => Some(ValueNotNull::Int(1)),
+                })
+            }
+            IsNotTrue(expr) => {
+                let value = self.calc_expr_for_row(row, expr)?;
+                Ok(match value {
+                    Some(ValueNotNull::Int(i)) if i != 0 => Some(ValueNotNull::Int(1)),
+                    _ => Some(ValueNotNull::Int(0)),
+                })
+            }
+            IsNull(expr) => {
+                let value = self.calc_expr_for_row(row, expr)?;
+                Ok(match value {
+                    Some(_) => Some(ValueNotNull::Int(0)),
+                    None => Some(ValueNotNull::Int(1)),
+                })
+            }
+            IsNotNull(expr) => {
+                let value = self.calc_expr_for_row(row, expr)?;
+                Ok(match value {
+                    Some(_) => Some(ValueNotNull::Int(1)),
+                    None => Some(ValueNotNull::Int(0)),
+                })
+            }
+            BinaryOp { left, op, right } => {
+                let left = self.calc_expr_for_row(row, left)?;
+                let right = self.calc_expr_for_row(row, right)?;
+                let Some(ValueNotNull::Int(left)) = left else {
+                    Err(DBSingleError::OtherError(format!(
+                        "left value {:?} is not int",
+                        left
+                    )))?
+                };
+                let Some(ValueNotNull::Int(right)) = right else {
+                    Err(DBSingleError::OtherError(format!(
+                        "right value {:?} is not int",
+                        right
+                    )))?
+                };
+                use ast::BinaryOperator::*;
+                Ok(match op {
+                    Plus => Some(ValueNotNull::Int(left + right)),
+                    Minus => Some(ValueNotNull::Int(left - right)),
+                    Multiply => Some(ValueNotNull::Int(left * right)),
+                    Divide => Some(ValueNotNull::Int(left / right)),
+                    Modulo => Some(ValueNotNull::Int(left % right)),
+                    Gt => Some(ValueNotNull::Int(if left > right { 1 } else { 0 })),
+                    Lt => Some(ValueNotNull::Int(if left < right { 1 } else { 0 })),
+                    GtEq => Some(ValueNotNull::Int(if left >= right { 1 } else { 0 })),
+                    LtEq => Some(ValueNotNull::Int(if left <= right { 1 } else { 0 })),
+                    Eq => Some(ValueNotNull::Int(if left == right { 1 } else { 0 })),
+                    NotEq => Some(ValueNotNull::Int(if left != right { 1 } else { 0 })),
+                    _ => Err(DBSingleError::UnsupportedOPError(format!(
+                        "unsupported binary operator {:?}",
+                        op
+                    )))?,
+                })
+            }
+
+            _ => Err(DBSingleError::UnsupportedOPError(format!(
+                "unsupported expression {:?}",
+                expr
+            )))?,
+        }
+    }
+
+    pub fn get_row_by_condition(&self, cond: Option<&ast::Expr>) -> DBResult<Vec<usize>> {
+        if cond.is_none() {
+            return Ok((0..self.rows.len()).collect());
+        }
+        let cond = cond.unwrap();
+
+        let mut result = vec![];
+        for (i, row) in self.rows.iter().enumerate() {
+            let value = self.calc_expr_for_row(row, cond)?;
+            match value {
+                Some(ValueNotNull::Int(v)) => {
+                    if v != 0 {
+                        result.push(i as usize)
+                    }
+                }
+                _ => Err(DBSingleError::OtherError(format!(
+                    "condition value {:?} is not int",
+                    value
+                )))?,
+            }
+        }
+        Ok(result)
+    }
+
     pub fn insert_row(&mut self, row: Vec<Value>) -> DBResult<usize> {
         let row_number = self.rows.len();
         if row.len() != self.column_info.len() {
@@ -118,6 +239,17 @@ impl Table {
         }
         self.rows.push(row);
         Ok(row_number)
+    }
+
+    pub fn delete_row(&mut self, row: &[usize]) -> DBResult<()> {
+        let rows = std::mem::take(&mut self.rows);
+        self.rows = rows
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| row.contains(i))
+            .map(|(_, v)| v)
+            .collect();
+        Ok(())
     }
 }
 
