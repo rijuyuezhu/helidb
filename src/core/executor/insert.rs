@@ -8,7 +8,7 @@ use sqlparser::ast;
 fn insert_parse_expr(expr: &ast::Expr) -> DBResult<Value> {
     use ast::Expr;
     Ok(match expr {
-        Expr::Identifier(ident) => Some(ValueNotNull::Varchar(ident.value.clone())),
+        Expr::Identifier(ident) => Some(ValueNotNull::Varchar(ident.value.clone())).into(),
 
         Expr::Value(ast::ValueWithSpan {
             value: ast::Value::Number(num, ..),
@@ -17,13 +17,13 @@ fn insert_parse_expr(expr: &ast::Expr) -> DBResult<Value> {
             let num = num.parse::<i32>().map_err(|_| {
                 DBSingleError::OtherError(format!("failed to parse number: {}", num))
             })?;
-            Some(ValueNotNull::Int(num))
+            Some(ValueNotNull::Int(num)).into()
         }
 
         Expr::Value(ast::ValueWithSpan {
             value: ast::Value::Null,
             ..
-        }) => None,
+        }) => None.into(),
 
         _ => Err(DBSingleError::UnsupportedOPError(format!(
             "unsupported expression: {:?}",
@@ -93,7 +93,7 @@ impl SQLExecutor<'_, '_> {
                     )))?
                 }
                 let mut used_index = HashSet::new();
-                let mut new_row = vec![None; table.column_info.len()];
+                let mut new_row = vec![None.into(); table.columns_info.len()];
                 for i in 0..num_insert_col {
                     let column_name = &columns_given[i];
                     let Some(index) = table.get_column_index(column_name) else {

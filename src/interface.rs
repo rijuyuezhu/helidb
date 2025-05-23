@@ -30,6 +30,7 @@ impl<'a> SQLExecConfig<'a> {
             let parser = SQLParser::new();
             parser.parse(sql_statements)?
         };
+
         let mut executor = SQLExecutor::new(sql_statements, self.output_target.clone());
 
         let mut result = Ok(());

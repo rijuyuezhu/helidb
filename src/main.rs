@@ -1,4 +1,4 @@
-use simple_db::{SQLExecConfig, utils::WriteHandle};
+use simple_db::{SQLExecConfig, WriteHandle};
 use std::env;
 
 fn main() {

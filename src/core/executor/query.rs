@@ -48,7 +48,7 @@ impl SQLExecutor<'_, '_> {
             use ast::SelectItem::*;
             match select_item {
                 Wildcard(_) => {
-                    for (i, column) in table.column_info.iter().enumerate() {
+                    for (i, column) in table.columns_info.iter().enumerate() {
                         new_column_infos.push(column.clone());
                         calc_funcs.push(Box::new(move |row| Ok(row[i].clone())));
                     }
@@ -97,7 +97,7 @@ impl SQLExecutor<'_, '_> {
                     let is_asc = order_by_expr.options.asc.unwrap_or(true);
                     (expr, is_asc)
                 }).collect::<Vec<_>>();
-            new_table.order_by(&keys)?;
+            new_table.convert_order_by(&keys)?;
         }
 
         if self.output_count > 0 {
