@@ -39,6 +39,10 @@ impl Table {
         &DUMMY
     }
 
+    pub fn get_row_num(&self) -> usize {
+        self.rows.len()
+    }
+
     pub fn get_column_num(&self) -> usize {
         self.columns_info.len()
     }
@@ -58,27 +62,28 @@ impl Table {
                 if name.quote_style.is_some() {
                     Value::from_varchar(name.value.clone())
                 } else {
-                    let index = self.get_column_index(&name.value).ok_or_else(|| {
-                        DBSingleError::OtherError(format!("column {} not found", name))
-                    })?;
-                    row[index].clone()
+                    match self.get_column_index(&name.value) {
+                        Some(index) => row[index].clone(),
+                        None => Value::from_varchar(name.value.clone()),
+                    }
                 }
             }
 
-            Expr::Value(ast::ValueWithSpan {
-                value: ast::Value::Number(num, ..),
-                ..
-            }) => {
-                let num = num.parse::<i32>().map_err(|_| {
-                    DBSingleError::OtherError(format!("failed to parse number: {}", num))
-                })?;
-                Value::from_int(num)
-            }
-
-            Expr::Value(ast::ValueWithSpan {
-                value: ast::Value::Null,
-                ..
-            }) => Value::from_null(),
+            Expr::Value(val) => match &val.value {
+                ast::Value::Number(num, ..) => {
+                    Value::from_int(num.parse::<i32>().map_err(|_| {
+                        DBSingleError::OtherError(format!("invalid number {}", num))
+                    })?)
+                }
+                ast::Value::Boolean(b) => Value::from_bool(*b),
+                ast::Value::Null => Value::from_null(),
+                ast::Value::SingleQuotedString(s) => Value::from_varchar(s.clone()),
+                ast::Value::DoubleQuotedString(s) => Value::from_varchar(s.clone()),
+                _ => Err(DBSingleError::UnsupportedOPError(format!(
+                    "unsupported value type {:?}",
+                    val
+                )))?,
+            },
 
             Expr::IsFalse(expr) => Value::from_bool(
                 self.calc_expr_for_row(row, expr)?

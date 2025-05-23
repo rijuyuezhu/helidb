@@ -22,6 +22,9 @@ impl ColumnTypeSpecific {
             ast::DataType::Int(width) => ColumnTypeSpecific::Int {
                 display_width: width,
             },
+            ast::DataType::Integer(width) => ColumnTypeSpecific::Int {
+                display_width: width,
+            },
             ast::DataType::Varchar(length) => ColumnTypeSpecific::Varchar {
                 max_length: varchar_length_convert(length)?,
             },

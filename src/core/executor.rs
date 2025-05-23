@@ -19,7 +19,6 @@ pub struct SQLExecutor<'a, 'b> {
     output_count: usize,
 }
 
-
 impl<'a, 'b> SQLExecutor<'a, 'b> {
     pub fn new(sql_statements: &'a str, output_target: WriteHandle<'b>) -> Self {
         SQLExecutor {

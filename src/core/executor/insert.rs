@@ -9,9 +9,14 @@ fn insert_parse_expr(expr: &ast::Expr) -> DBResult<Value> {
     Table::get_dummy().calc_expr_for_row(&[], expr)
 }
 
-fn insert_parse_values(values: &ast::Values) -> DBResult<Vec<Vec<Value>>> {
+fn insert_parse_query(query: &ast::Query) -> DBResult<Vec<Vec<Value>>> {
+    let ast::SetExpr::Values(values) = query.body.as_ref() else {
+        Err(DBSingleError::UnsupportedOPError(
+            "only support values".into(),
+        ))?
+    };
     let mut rows = vec![];
-    for row in values.rows.iter() {
+    for row in &values.rows {
         let mut res_row = vec![];
         for entry in row {
             res_row.push(insert_parse_expr(entry)?);
@@ -19,15 +24,6 @@ fn insert_parse_values(values: &ast::Values) -> DBResult<Vec<Vec<Value>>> {
         rows.push(res_row);
     }
     Ok(rows)
-}
-
-fn insert_parse_query(query: &ast::Query) -> DBResult<Vec<Vec<Value>>> {
-    let ast::SetExpr::Values(values) = query.body.as_ref() else {
-        Err(DBSingleError::UnsupportedOPError(
-            "only support values".into(),
-        ))?
-    };
-    insert_parse_values(values)
 }
 
 impl SQLExecutor<'_, '_> {
@@ -71,6 +67,7 @@ impl SQLExecutor<'_, '_> {
                 table.insert_row(row)?;
             }
         } else {
+            // reorder the values according to the columns_indicator
             for mut insert_values in rows {
                 if insert_values.len() != columns_indicator.len() {
                     Err(DBSingleError::OtherError(format!(

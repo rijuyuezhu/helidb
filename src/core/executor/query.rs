@@ -120,12 +120,14 @@ impl SQLExecutor<'_, '_> {
 
         execute_order_by(&mut new_table, &query.order_by)?;
 
-        // output the new_table
-        if self.output_count > 0 {
-            writeln!(self.output_target)?;
+        if new_table.get_row_num() > 0 {
+            // output the new_table
+            if self.output_count > 0 {
+                writeln!(self.output_target)?;
+            }
+            write!(self.output_target, "{}", new_table)?;
+            self.output_count += 1;
         }
-        write!(self.output_target, "{}", new_table)?;
-        self.output_count += 1;
 
         Ok(())
     }

@@ -39,8 +39,7 @@ impl SQLExecutor<'_, '_> {
         let row_selected = table.get_row_satisfying_cond(selection.as_ref())?;
 
         for row_idx in row_selected {
-            let orig_row = &table.rows[row_idx];
-            let mut row = orig_row.clone();
+            let orig_row = table.rows[row_idx].clone();
             for ast::Assignment {
                 target,
                 value: expr,
@@ -56,11 +55,11 @@ impl SQLExecutor<'_, '_> {
                 let index = table.get_column_index(&column_name).ok_or_else(|| {
                     DBSingleError::OtherError(format!("column not found: {}", column_name))
                 })?;
-                let value = table.calc_expr_for_row(orig_row, expr)?;
+
+                let value = table.calc_expr_for_row(&orig_row, expr)?;
                 table.check_column_with_value(index, &value, Some(row_idx))?;
-                row[index] = value;
+                table.rows[row_idx][index] = value;
             }
-            table.update_row(row_idx, row)?;
         }
 
         Ok(())

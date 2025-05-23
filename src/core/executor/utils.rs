@@ -17,4 +17,3 @@ impl SQLExecutor<'_, '_> {
         Some(sql_line[start_column..end_column].to_string())
     }
 }
-
