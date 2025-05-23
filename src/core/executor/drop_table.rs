@@ -8,11 +8,12 @@ impl SQLExecutor<'_, '_> {
             object_type, names, ..
         } = drop_statement
         else {
+            // This should never happen, as we have entered into this function
             panic!("Should not reach here");
         };
 
-        if object_type != &ast::ObjectType::Table {
-            return Err(DBSingleError::OtherError(
+        if *object_type != ast::ObjectType::Table {
+            Err(DBSingleError::OtherError(
                 "only table drop is supported".into(),
             ))?;
         }

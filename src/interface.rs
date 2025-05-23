@@ -37,6 +37,9 @@ impl<'a> SQLExecConfig<'a> {
         for statement in statements.iter() {
             result = join_result(result, executor.execute_statement(statement));
         }
+        if executor.get_output_count() == 0 {
+            writeln!(self.output_target, "There are no results to be displayed.")?;
+        }
         result
     }
     pub fn execute_sql(&mut self, sql_statements: &str) -> bool {

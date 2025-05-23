@@ -1,18 +1,10 @@
 use super::SQLExecutor;
+use crate::core::data_structure::Table;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
 impl SQLExecutor<'_, '_> {
-    pub(super) fn execute_update(&mut self, update_statement: &ast::Statement) -> DBResult<()> {
-        let ast::Statement::Update {
-            table,
-            assignments,
-            selection,
-            ..
-        } = update_statement
-        else {
-            panic!("Should not reach here");
-        };
+    fn parse_table_in_ast(&mut self, table: &ast::TableWithJoins) -> DBResult<&mut Table> {
         let ast::TableFactor::Table {
             name: ref table_name,
             ..
@@ -23,15 +15,32 @@ impl SQLExecutor<'_, '_> {
             ))?
         };
         let table_name = table_name.to_string();
-        let Some(table) = self.database.get_table_mut(&table_name) else {
-            Err(DBSingleError::OtherError(format!(
-                "table not found: {}",
-                table_name
-            )))?
+
+        let table = self
+            .database
+            .get_table_mut(&table_name)
+            .ok_or_else(|| DBSingleError::OtherError(format!("table not found: {}", table_name)))?;
+        Ok(table)
+    }
+
+    pub(super) fn execute_update(&mut self, update_statement: &ast::Statement) -> DBResult<()> {
+        let ast::Statement::Update {
+            table,
+            assignments,
+            selection,
+            ..
+        } = update_statement
+        else {
+            // This should never happen, as we have entered into this function
+            panic!("Should not reach here");
         };
 
-        let row_selected = table.get_row_by_condition(selection.as_ref())?;
+        let table = self.parse_table_in_ast(table)?;
+        let row_selected = table.get_row_satisfying_cond(selection.as_ref())?;
+
         for row_idx in row_selected {
+            let orig_row = &table.rows[row_idx];
+            let mut row = orig_row.clone();
             for ast::Assignment {
                 target,
                 value: expr,
@@ -43,18 +52,15 @@ impl SQLExecutor<'_, '_> {
                     ))?
                 };
                 let column_name = column_name.to_string();
-                let Some(col) = table.get_column_index(&column_name) else {
-                    Err(DBSingleError::OtherError(format!(
-                        "column not found: {}",
-                        column_name
-                    )))?
-                };
-                let orig_row = &table.rows[row_idx];
+
+                let index = table.get_column_index(&column_name).ok_or_else(|| {
+                    DBSingleError::OtherError(format!("column not found: {}", column_name))
+                })?;
                 let value = table.calc_expr_for_row(orig_row, expr)?;
-                table.check_column_with_value(col, &value, Some(row_idx))?;
-                let orig_row = &mut table.rows[row_idx];
-                orig_row[col] = value;
+                table.check_column_with_value(index, &value, Some(row_idx))?;
+                row[index] = value;
             }
+            table.update_row(row_idx, row)?;
         }
 
         Ok(())

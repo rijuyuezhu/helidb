@@ -4,6 +4,7 @@ mod drop_table;
 mod insert;
 mod query;
 mod update;
+mod utils;
 
 use crate::core::data_structure::Database;
 use crate::error::{DBResult, DBSingleError};
@@ -18,6 +19,7 @@ pub struct SQLExecutor<'a, 'b> {
     output_count: usize,
 }
 
+
 impl<'a, 'b> SQLExecutor<'a, 'b> {
     pub fn new(sql_statements: &'a str, output_target: WriteHandle<'b>) -> Self {
         SQLExecutor {
@@ -31,7 +33,6 @@ impl<'a, 'b> SQLExecutor<'a, 'b> {
 
 impl SQLExecutor<'_, '_> {
     pub fn execute_statement(&mut self, statement: &ast::Statement) -> DBResult<()> {
-        // println!("{:#?}\n", statement);
         use ast::Statement::*;
         match statement {
             CreateTable(create_table) => self.execute_create_table(create_table),
@@ -40,22 +41,13 @@ impl SQLExecutor<'_, '_> {
             Query(query) => self.execute_query(query),
             Update { .. } => self.execute_update(statement),
             Delete(delete) => self.execute_delete(delete),
-            _ => Err(DBSingleError::UnsupportedOPError("main operator".into()))?,
+            _ => Err(DBSingleError::UnsupportedOPError(format!(
+                "statement {:?}",
+                statement
+            )))?,
         }
     }
-    fn get_content_from_span(&self, span: sqlparser::tokenizer::Span) -> Option<String> {
-        let start = span.start;
-        let end = span.end;
-        if start.line != end.line || start.column > end.column || start.line == 0 || end.line == 0 {
-            return None;
-        }
-        let line = start.line as usize;
-        let sql_line = self.sql_statements.lines().nth(line - 1)?;
-        let start_column = start.column as usize - 1;
-        let end_column = end.column as usize - 1;
-        if sql_line.len() < end_column {
-            return None;
-        }
-        Some(sql_line[start_column..end_column].to_string())
+    pub fn get_output_count(&self) -> usize {
+        self.output_count
     }
 }

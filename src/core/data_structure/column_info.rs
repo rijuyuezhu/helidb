@@ -5,6 +5,7 @@ use sqlparser::ast;
 pub enum ColumnTypeSpecific {
     Int { display_width: Option<u64> },
     Varchar { max_length: u64 },
+    Any,
 }
 
 fn varchar_length_convert(length: Option<ast::CharacterLength>) -> DBResult<u64> {

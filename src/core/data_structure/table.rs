@@ -1,5 +1,6 @@
 use super::{ColumnInfo, Value, ValueNotNull};
 use crate::error::{DBResult, DBSingleError};
+use lazy_static::lazy_static;
 use sqlparser::ast;
 use std::collections::HashMap;
 
@@ -27,12 +28,19 @@ impl Table {
         }
     }
 
-    pub fn new_dummy_for_empty_select() -> Self {
-        Table {
-            rows: vec![TableRow::new()],
-            columns_info: Vec::new(),
-            column_rmap: HashMap::new(),
+    pub fn get_dummy() -> &'static Self {
+        lazy_static! {
+            static ref DUMMY: Table = Table {
+                rows: vec![TableRow::new()],
+                columns_info: Vec::new(),
+                column_rmap: HashMap::new(),
+            };
         }
+        &DUMMY
+    }
+
+    pub fn get_column_num(&self) -> usize {
+        self.columns_info.len()
     }
 
     pub fn get_column_index(&self, column_name: &str) -> Option<usize> {
@@ -151,7 +159,7 @@ impl Table {
         })
     }
 
-    pub fn get_row_by_condition(&self, cond: Option<&ast::Expr>) -> DBResult<Vec<usize>> {
+    pub fn get_row_satisfying_cond(&self, cond: Option<&ast::Expr>) -> DBResult<Vec<usize>> {
         if cond.is_none() {
             return Ok((0..self.rows.len()).collect());
         }
@@ -234,37 +242,41 @@ impl Table {
         Ok(())
     }
 
+    pub fn update_row(&mut self, row_idx: usize, row: Vec<Value>) -> DBResult<()> {
+        self.rows[row_idx] = row;
+        Ok(())
+    }
+
     pub fn convert_order_by(&mut self, keys: &[(&ast::Expr, bool)]) -> DBResult<()> {
-        // Safety:
-        // 1. self.rows borrows self mutably; however, it only changes self.rows;
-        // 2. self.calc_expr_for_row borrows self immutably; however, it only reads self.columns_rmap (in self.get_column_index);
-        // Hence the operation below is safe; we use tricks to bypass Rust's borrow check.
-        let self_ptr = unsafe { &*(self as *const Table) };
+        let mut cached_entries = vec![];
 
         // beforehand check: to avoid panic when sorting
         for &(expr, _) in keys {
-            let mut prev_value = None;
+            let mut row_entries = vec![];
             for row in &self.rows {
                 let v = self.calc_expr_for_row(row, expr)?;
-                if prev_value
-                    .as_ref()
-                    .is_none_or(|prev: &Value| prev.partial_cmp(&v).is_some())
+                if row_entries
+                    .last()
+                    .is_some_and(|prev: &Value| prev.partial_cmp(&v).is_none())
                 {
-                    prev_value = Some(v);
-                } else {
                     Err(DBSingleError::OtherError(format!(
-                        "invalid value type for order by: {:?} {:?}",
-                        prev_value, v
+                        "invalid value type for order by: {:?}",
+                        v
                     )))?;
                 }
+                row_entries.push(v);
             }
+            cached_entries.push(row_entries);
         }
+        let row_start = &self.rows[0] as *const Vec<Value>;
 
         self.rows.sort_by(|a, b| {
-            for &(expr, is_asc) in keys {
-                let av = self_ptr.calc_expr_for_row(a, expr).unwrap();
-                let bv = self_ptr.calc_expr_for_row(b, expr).unwrap();
-                let mut ord = av.partial_cmp(&bv).unwrap();
+            let a_idx = unsafe { (a as *const Vec<Value>).offset_from(row_start) } as usize;
+            let b_idx = unsafe { (b as *const Vec<Value>).offset_from(row_start) } as usize;
+            for (expr_idx, &(_, is_asc)) in keys.iter().enumerate() {
+                let av = &cached_entries[expr_idx][a_idx];
+                let bv = &cached_entries[expr_idx][b_idx];
+                let mut ord = av.partial_cmp(bv).unwrap();
                 if !is_asc {
                     ord = ord.reverse();
                 }
@@ -274,6 +286,7 @@ impl Table {
             }
             std::cmp::Ordering::Equal
         });
+
         Ok(())
     }
 }

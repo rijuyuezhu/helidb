@@ -1,47 +1,24 @@
 use std::collections::HashSet;
 
 use super::SQLExecutor;
-use crate::core::data_structure::{Value, ValueNotNull};
+use crate::core::data_structure::{Table, Value};
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
 fn insert_parse_expr(expr: &ast::Expr) -> DBResult<Value> {
-    use ast::Expr;
-    Ok(match expr {
-        Expr::Identifier(ident) => Some(ValueNotNull::Varchar(ident.value.clone())).into(),
-
-        Expr::Value(ast::ValueWithSpan {
-            value: ast::Value::Number(num, ..),
-            ..
-        }) => {
-            let num = num.parse::<i32>().map_err(|_| {
-                DBSingleError::OtherError(format!("failed to parse number: {}", num))
-            })?;
-            Some(ValueNotNull::Int(num)).into()
-        }
-
-        Expr::Value(ast::ValueWithSpan {
-            value: ast::Value::Null,
-            ..
-        }) => None.into(),
-
-        _ => Err(DBSingleError::UnsupportedOPError(format!(
-            "unsupported expression: {:?}",
-            expr
-        )))?,
-    })
+    Table::get_dummy().calc_expr_for_row(&[], expr)
 }
 
 fn insert_parse_values(values: &ast::Values) -> DBResult<Vec<Vec<Value>>> {
-    let mut result = vec![];
+    let mut rows = vec![];
     for row in values.rows.iter() {
         let mut res_row = vec![];
         for entry in row {
             res_row.push(insert_parse_expr(entry)?);
         }
-        result.push(res_row);
+        rows.push(res_row);
     }
-    Ok(result)
+    Ok(rows)
 }
 
 fn insert_parse_query(query: &ast::Query) -> DBResult<Vec<Vec<Value>>> {
@@ -54,67 +31,74 @@ fn insert_parse_query(query: &ast::Query) -> DBResult<Vec<Vec<Value>>> {
 }
 
 impl SQLExecutor<'_, '_> {
-    pub(super) fn execute_insert(&mut self, insert: &ast::Insert) -> DBResult<()> {
-        let table = &insert.table;
-        let ast::TableObject::TableName(table_name) = table else {
+    fn parse_insert<'a, 'b>(
+        &'a mut self,
+        insert: &'b ast::Insert,
+    ) -> DBResult<(&'a mut Table, &'b ast::Query, Vec<String>)> {
+        let table_object = &insert.table;
+        let ast::TableObject::TableName(table_name) = table_object else {
             Err(DBSingleError::UnsupportedOPError(
                 "only support TableName".into(),
             ))?
         };
-        let Some(table) = self.database.get_table_mut(&table_name.to_string()) else {
-            Err(DBSingleError::OtherError(format!(
-                "table not found: {}",
-                table_name
-            )))?
-        };
-        let Some(ref query) = insert.source else {
-            Err(DBSingleError::UnsupportedOPError(
-                "insert without query".into(),
-            ))?
-        };
-        let columns_given = insert
+        let table_name = table_name.to_string();
+
+        let table = self
+            .database
+            .get_table_mut(&table_name)
+            .ok_or_else(|| DBSingleError::OtherError(format!("table not found: {}", table_name)))?;
+        let query = insert
+            .source
+            .as_ref()
+            .ok_or_else(|| DBSingleError::UnsupportedOPError("insert without query".into()))?
+            .as_ref();
+        let columns_indicator = insert
             .columns
             .iter()
             .map(|c| c.to_string())
             .collect::<Vec<_>>();
+        Ok((table, query, columns_indicator))
+    }
 
-        let num_insert_col = columns_given.len();
+    pub(super) fn execute_insert(&mut self, insert: &ast::Insert) -> DBResult<()> {
+        let (table, query, columns_indicator) = self.parse_insert(insert)?;
 
         let rows = insert_parse_query(query)?;
-        for mut row in rows {
-            let new_row = if columns_given.is_empty() {
-                row
-            } else {
-                if row.len() != num_insert_col {
+
+        if columns_indicator.is_empty() {
+            // on columns_indicator in the INSERT statement
+            for row in rows {
+                table.insert_row(row)?;
+            }
+        } else {
+            for mut insert_values in rows {
+                if insert_values.len() != columns_indicator.len() {
                     Err(DBSingleError::OtherError(format!(
                         "number of columns given {} does not match number of values {}",
-                        num_insert_col,
-                        row.len()
+                        columns_indicator.len(),
+                        insert_values.len()
                     )))?
                 }
-                let mut used_index = HashSet::new();
-                let mut new_row = vec![None.into(); table.columns_info.len()];
-                for i in 0..num_insert_col {
-                    let column_name = &columns_given[i];
-                    let Some(index) = table.get_column_index(column_name) else {
-                        Err(DBSingleError::OtherError(format!(
-                            "column {} not found",
-                            column_name
-                        )))?
-                    };
-                    if used_index.contains(&index) {
+                let mut row = vec![Value::from_null(); table.get_column_num()];
+                let mut index_used = HashSet::new();
+                for i in 0..columns_indicator.len() {
+                    let column_name = &columns_indicator[i];
+                    let index = table.get_column_index(column_name).ok_or_else(|| {
+                        DBSingleError::OtherError(format!("column {} not found", column_name))
+                    })?;
+
+                    if index_used.contains(&index) {
                         Err(DBSingleError::OtherError(format!(
                             "column {} is duplicated",
                             column_name
                         )))?
                     }
-                    used_index.insert(index);
-                    std::mem::swap(&mut new_row[index], &mut row[i]);
+                    index_used.insert(index);
+
+                    std::mem::swap(&mut row[index], &mut insert_values[i]);
                 }
-                drop(row);
-                new_row
-            };
-            table.insert_row(new_row)?;
+                table.insert_row(row)?;
+            }
         }
         Ok(())
     }

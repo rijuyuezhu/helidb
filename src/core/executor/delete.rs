@@ -30,7 +30,7 @@ impl SQLExecutor<'_, '_> {
                 table_name
             )))?
         };
-        let row_to_delete = table.get_row_by_condition(delete.selection.as_ref())?;
+        let row_to_delete = table.get_row_satisfying_cond(delete.selection.as_ref())?;
         table.delete_row(&row_to_delete)?;
 
         Ok(())

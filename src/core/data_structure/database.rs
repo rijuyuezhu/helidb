@@ -15,7 +15,11 @@ impl Database {
     }
     pub fn create_table(&mut self, table_name: String, column_info: Vec<ColumnInfo>) {
         let table = Table::new(column_info);
-        self.tables.insert(table_name, table);
+        if self.tables.insert(table_name, table).is_some() {
+            panic!(
+                "table already exists; should not reach here. Check the existence of the table before creating it"
+            );
+        }
     }
 
     pub fn drop_table(&mut self, table_name: &str) -> DBResult<()> {
