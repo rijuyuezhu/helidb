@@ -6,7 +6,7 @@
 //! - Ordering
 //! - Result output
 
-use super::SQLExecutor;
+use super::{SQLExecutor, SQLExecutorState};
 use crate::core::data_structure::{ColumnInfo, ColumnTypeSpecific, Table, Value};
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast::{self, Spanned};
@@ -47,7 +47,7 @@ fn execute_order_by(table: &mut Table, order_by: &Option<ast::OrderBy>) -> DBRes
     Ok(())
 }
 
-impl SQLExecutor<'_, '_> {
+impl SQLExecutor {
     /// Gets the source table for a SELECT query.
     ///
     /// # Arguments
@@ -92,6 +92,7 @@ impl SQLExecutor<'_, '_> {
     /// # Arguments
     /// * `table` - Source table
     /// * `select` - Parsed SELECT statement
+    /// * `executor_state` - Current executor state for evaluation context
     ///
     /// # Returns
     /// New table containing query results
@@ -101,7 +102,12 @@ impl SQLExecutor<'_, '_> {
     /// - Unsupported projection types
     /// - Invalid expressions
     /// - Filter evaluation failures
-    fn get_query_table(&self, table: &Table, select: &ast::Select) -> DBResult<Table> {
+    fn get_query_table(
+        &self,
+        table: &Table,
+        select: &ast::Select,
+        executor_state: &SQLExecutorState,
+    ) -> DBResult<Table> {
         type CalcFunc<'a> = Box<dyn Fn(&[Value]) -> DBResult<Value> + 'a>;
 
         let mut new_column_infos = vec![];
@@ -118,7 +124,7 @@ impl SQLExecutor<'_, '_> {
                 }
                 UnnamedExpr(expr) => {
                     let column_name = self
-                        .get_content_from_span(expr.span())
+                        .get_content_from_span(expr.span(), executor_state)
                         .unwrap_or_else(|| expr.to_string());
                     new_column_infos.push(ColumnInfo {
                         name: column_name,
@@ -157,13 +163,18 @@ impl SQLExecutor<'_, '_> {
     ///
     /// # Arguments
     /// * `query` - Parsed query to execute
+    /// * `executor_state` - Current executor state for evaluation context
     ///
     /// # Errors
     /// Returns error for:
     /// - Non-SELECT queries
     /// - Unsupported query features
     /// - Evaluation failures
-    pub(super) fn execute_query(&mut self, query: &ast::Query) -> DBResult<()> {
+    pub(super) fn execute_query(
+        &mut self,
+        query: &ast::Query,
+        executor_state: &mut SQLExecutorState,
+    ) -> DBResult<()> {
         let ast::SetExpr::Select(select) = query.body.as_ref() else {
             Err(DBSingleError::UnsupportedOPError(
                 "only support select".into(),
@@ -171,17 +182,17 @@ impl SQLExecutor<'_, '_> {
         };
 
         let table = self.parse_table_from_select(select)?;
-        let mut new_table = self.get_query_table(table, select)?;
+        let mut new_table = self.get_query_table(table, select, executor_state)?;
 
         execute_order_by(&mut new_table, &query.order_by)?;
 
         if new_table.get_row_num() > 0 {
             // output the new_table
-            if self.output_count > 0 {
-                writeln!(self.output_target)?;
+            if executor_state.output_count > 0 {
+                writeln!(executor_state.output_buffer)?;
             }
-            write!(self.output_target, "{}", new_table)?;
-            self.output_count += 1;
+            write!(executor_state.output_buffer, "{}", new_table)?;
+            executor_state.output_count += 1;
         }
 
         Ok(())

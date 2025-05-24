@@ -7,7 +7,7 @@ use crate::core::data_structure::Table;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
-impl SQLExecutor<'_, '_> {
+impl SQLExecutor {
     /// Parses and validates the target table from UPDATE statement.
     ///
     /// # Arguments

@@ -7,3 +7,5 @@ edition = "2024"
 sqlparser = "0.56"
 lazy_static = "1.5"
 bincode = "2.0"
+clap = { version = "4.5", features = ["derive"] }
+rustyline = "15.0"

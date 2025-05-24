@@ -6,7 +6,7 @@ use super::SQLExecutor;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
-impl SQLExecutor<'_, '_> {
+impl SQLExecutor {
     /// Executes a DELETE statement.
     ///
     /// # Arguments

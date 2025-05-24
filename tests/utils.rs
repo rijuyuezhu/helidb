@@ -1,4 +1,4 @@
-use simple_db::{SQLExecConfig, WriteHandle};
+use simple_db::SQLExecConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestResult {
@@ -46,16 +46,14 @@ impl std::fmt::Display for TestResult {
 }
 
 pub fn run_sql(sql: &str) -> TestResult {
-    let mut output = String::new();
-    let mut err_output = String::new();
-    let no_error = SQLExecConfig::new()
-        .output_target(WriteHandle::from(Box::new(&mut output)))
-        .err_output_target(WriteHandle::from(Box::new(&mut err_output)))
-        .execute_sql(sql);
-    print!("{}", no_error);
+    let (no_error, output) = SQLExecConfig::new()
+        .connect()
+        .expect("Failed to connect to database")
+        .execute_sql_combine_outputs(sql);
+
     if no_error {
         TestResult::Normal(output)
     } else {
-        TestResult::Error(err_output)
+        TestResult::Error(output)
     }
 }

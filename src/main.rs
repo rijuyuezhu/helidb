@@ -1,22 +1,74 @@
-use simple_db::{SQLExecConfig, WriteHandle};
-use std::env;
+use clap::Parser;
+use simple_db::SQLExecConfig;
+use std::path::PathBuf;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// The SQL file to execute for OJ test. When not given, enter the REPL
+    sql: Option<String>,
+
+    /// Storage path (only for REPL)
+    #[arg(short = 's', long)]
+    storage_path: Option<PathBuf>,
+
+    /// Reinitialize the storage (only for REPL)
+    #[arg(long)]
+    reinit: bool,
+
+    /// Do not write back to the storage path (only for REPL)
+    #[arg(long)]
+    no_write_back: bool,
+}
+
+fn oj_test(file_name: &str) {
+    let sql_statements = std::fs::read_to_string(file_name).expect("Unable to read file");
+    let mut handle = SQLExecConfig::new()
+        .connect()
+        .expect("Failed to connect to database");
+    let (_, output) = handle.execute_sql_combine_outputs(&sql_statements);
+    print!("{}", output);
+}
+
+fn repl(storage_path: Option<PathBuf>, reinit: bool, no_write_back: bool) {
+    let mut handle = SQLExecConfig::new()
+        .storage_path(storage_path)
+        .reinit(reinit)
+        .write_back(!no_write_back)
+        .connect()
+        .expect("Failed to connect to database");
+    let mut rl = rustyline::DefaultEditor::new().unwrap();
+    loop {
+        let readline = rl.readline("SQL> ");
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(&line).unwrap();
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let (_, output) = handle.execute_sql_combine_outputs(&line);
+                print!("{}", output);
+            }
+            Err(rustyline::error::ReadlineError::Interrupted) => {
+                println!("Ctrl-C pressed, exiting REPL.");
+                break;
+            }
+            Err(rustyline::error::ReadlineError::Eof) => {
+                break;
+            }
+            Err(err) => {
+                eprintln!("Error reading line: {}", err);
+            }
+        }
+    }
+}
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        println!("Usage: {} <sql_file>", args[0]);
-        return;
-    }
-    let sql_statements = std::fs::read_to_string(&args[1]).expect("Unable to read file");
-    let mut output = String::new();
-    let mut err_output = String::new();
-    let no_error = SQLExecConfig::new()
-        .output_target(WriteHandle::from(Box::new(&mut output)))
-        .err_output_target(WriteHandle::from(Box::new(&mut err_output)))
-        .execute_sql(&sql_statements);
-    if no_error {
-        print!("{}", output);
+    let cli = Cli::parse();
+    if let Some(file_name) = cli.sql {
+        oj_test(&file_name);
     } else {
-        print!("{}", err_output);
+        println!("No file name provided. Entering REPL...");
+        repl(cli.storage_path, cli.reinit, cli.no_write_back);
     }
 }

@@ -29,6 +29,29 @@ where
     Ok(database)
 }
 
+/// Loads a database from a file at the specified path.
+/// 
+/// # Arguments
+/// * `path` - The path to the file from which the database will be loaded.
+/// 
+/// # Returns
+/// The loaded database or an error if the operation fails.
+pub fn load_database_from_path<P>(path: P) -> DBResult<Database>
+where
+    P: AsRef<std::path::Path>,
+{
+    match std::fs::File::open(path) {
+        Ok(f) => load_database_from(f),
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::NotFound => Ok(Database::new()),
+            _ => Err(DBSingleError::OtherError(format!(
+                "Error opening storage file: {}",
+                e
+            )))?,
+        },
+    }
+}
+
 /// Writes a database to a binary format.
 ///
 /// # Arguments
@@ -49,4 +72,3 @@ where
     writer.write_all(&buffer)?;
     Ok(())
 }
-

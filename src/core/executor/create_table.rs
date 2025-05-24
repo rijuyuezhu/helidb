@@ -41,7 +41,7 @@ fn get_column_info(opts: &[ast::ColumnOptionDef]) -> DBResult<(bool, bool)> {
     Ok((nullable, unique))
 }
 
-impl SQLExecutor<'_, '_> {
+impl SQLExecutor {
     /// Executes a CREATE TABLE statement.
     ///
     /// # Arguments

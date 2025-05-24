@@ -52,7 +52,7 @@ fn insert_parse_query(query: &ast::Query) -> DBResult<Vec<Vec<Value>>> {
     Ok(rows)
 }
 
-impl SQLExecutor<'_, '_> {
+impl SQLExecutor {
     /// Parses an INSERT statement into its components.
     ///
     /// # Arguments
