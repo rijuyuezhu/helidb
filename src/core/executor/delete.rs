@@ -1,8 +1,22 @@
+//! DELETE statement execution.
+//!
+//! Handles parsing and execution of DELETE statements.
+
 use super::SQLExecutor;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
 impl SQLExecutor<'_, '_> {
+    /// Executes a DELETE statement.
+    ///
+    /// # Arguments
+    /// * `delete` - Parsed DELETE statement
+    ///
+    /// # Errors
+    /// Returns error for:
+    /// - Table not found
+    /// - Unsupported table types (only simple tables supported)
+    /// - Invalid conditions
     pub(super) fn execute_delete(&mut self, delete: &ast::Delete) -> DBResult<()> {
         let tables = match &delete.from {
             ast::FromTable::WithFromKeyword(tables) => tables,

@@ -1,20 +1,30 @@
+//! Table structure and operations.
+//!
+//! Contains the Table type that manages rows and columns of data.
+
 use super::{ColumnInfo, Value, ValueNotNull};
 use crate::error::{DBResult, DBSingleError};
 use lazy_static::lazy_static;
 use sqlparser::ast;
 use std::collections::HashMap;
 
-type TableRow = Vec<Value>;
-
+/// Represents a database table with rows and columns.
 #[derive(Debug, Clone)]
 pub struct Table {
-    pub rows: Vec<TableRow>,
+    /// Vector of all rows in the table
+    pub rows: Vec<Vec<Value>>,
 
+    /// Metadata about each column
     pub columns_info: Vec<ColumnInfo>,
+    /// Mapping from column names to their indices
     pub column_rmap: HashMap<String, usize>,
 }
 
 impl Table {
+    /// Creates a new empty table with the given column definitions.
+    ///
+    /// # Arguments
+    /// * `columns_info` - Column metadata definitions
     pub fn new(columns_info: Vec<ColumnInfo>) -> Self {
         let column_rmap = columns_info
             .iter()
@@ -22,39 +32,67 @@ impl Table {
             .map(|(i, col)| (col.name.clone(), i))
             .collect();
         Table {
-            rows: Vec::new(),
+            rows: vec![],
             columns_info,
             column_rmap,
         }
     }
 
+    /// Gets a static dummy table instance for testing/placeholder purposes.
     pub fn get_dummy() -> &'static Self {
         lazy_static! {
             static ref DUMMY: Table = Table {
-                rows: vec![TableRow::new()],
-                columns_info: Vec::new(),
+                rows: vec![vec![]],
+                columns_info: vec![],
                 column_rmap: HashMap::new(),
             };
         }
         &DUMMY
     }
 
+    /// Gets the number of rows in the table.
     pub fn get_row_num(&self) -> usize {
         self.rows.len()
     }
 
+    /// Gets the number of columns in the table.
     pub fn get_column_num(&self) -> usize {
         self.columns_info.len()
     }
 
+    /// Gets the index of a column by name.
+    ///
+    /// # Arguments
+    /// * `column_name` - Name of the column to look up
+    ///
+    /// # Returns
+    /// The index of the column if found, None otherwise
     pub fn get_column_index(&self, column_name: &str) -> Option<usize> {
         self.column_rmap.get(column_name).copied()
     }
 
+    /// Gets column metadata by index.
+    ///
+    /// # Arguments
+    /// * `column_index` - Index of the column
+    ///
+    /// # Panics
+    /// If index is out of bounds
     pub fn get_column_info(&self, column_index: usize) -> &ColumnInfo {
         &self.columns_info[column_index]
     }
 
+    /// Evaluates a SQL expression against a row of values.
+    ///
+    /// # Arguments
+    /// * `row` - Row values to evaluate against
+    /// * `expr` - SQL expression to evaluate
+    ///
+    /// # Returns
+    /// Result containing the evaluated Value or error
+    ///
+    /// # Errors
+    /// Returns error for unsupported expressions or type mismatches
     pub fn calc_expr_for_row(&self, row: &[Value], expr: &ast::Expr) -> DBResult<Value> {
         use ast::Expr;
         Ok(match expr {
@@ -164,6 +202,16 @@ impl Table {
         })
     }
 
+    /// Gets indices of rows matching a condition.
+    ///
+    /// # Arguments
+    /// * `cond` - Optional SQL condition expression
+    ///
+    /// # Returns
+    /// Vector of row indices matching the condition
+    ///
+    /// # Note
+    /// Returns all row indices if cond is None
     pub fn get_row_satisfying_cond(&self, cond: Option<&ast::Expr>) -> DBResult<Vec<usize>> {
         if cond.is_none() {
             return Ok((0..self.rows.len()).collect());
@@ -183,12 +231,31 @@ impl Table {
         Ok(result)
     }
 
+    /// Inserts a row without validation checks.
+    ///
+    /// # Arguments
+    /// * `row` - Row values to insert
+    ///
+    /// # Returns
+    /// Index of the newly inserted row
+    ///
+    /// # Safety
+    /// Does not validate constraints - caller must ensure validity
     pub fn insert_row_unchecked(&mut self, row: Vec<Value>) -> DBResult<usize> {
         let row_number = self.rows.len();
         self.rows.push(row);
         Ok(row_number)
     }
 
+    /// Validates a value against column constraints.
+    ///
+    /// # Arguments
+    /// * `col_idx` - Column index to validate against
+    /// * `value` - Value to validate
+    /// * `skip_row` - Optional row index to skip during uniqueness check
+    ///
+    /// # Returns
+    /// Ok(()) if valid, Err if constraints violated
     pub fn check_column_with_value(
         &self,
         col_idx: usize,
@@ -217,6 +284,18 @@ impl Table {
         Ok(())
     }
 
+    /// Inserts a row with full validation.
+    ///
+    /// # Arguments
+    /// * `row` - Row values to insert
+    ///
+    /// # Returns
+    /// Index of the newly inserted row
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Row length doesn't match column count
+    /// - Constraints are violated (nullability, uniqueness)
     pub fn insert_row(&mut self, row: Vec<Value>) -> DBResult<usize> {
         if row.len() != self.columns_info.len() {
             Err(DBSingleError::OtherError(format!(
@@ -231,6 +310,10 @@ impl Table {
         self.insert_row_unchecked(row)
     }
 
+    /// Deletes rows by their indices.
+    ///
+    /// # Arguments
+    /// * `row_idxs` - Indices of rows to delete
     pub fn delete_row(&mut self, row_idxs: &[usize]) -> DBResult<()> {
         let row_idxs_to_delete = row_idxs
             .iter()
@@ -247,11 +330,13 @@ impl Table {
         Ok(())
     }
 
-    pub fn update_row(&mut self, row_idx: usize, row: Vec<Value>) -> DBResult<()> {
-        self.rows[row_idx] = row;
-        Ok(())
-    }
-
+    /// Sorts table rows according to ORDER BY clauses.
+    ///
+    /// # Arguments
+    /// * `keys` - Pairs of (expression, is_ascending) defining sort order
+    ///
+    /// # Errors
+    /// Returns error if expressions evaluate to incompatible types
     pub fn convert_order_by(&mut self, keys: &[(&ast::Expr, bool)]) -> DBResult<()> {
         let mut cached_entries = vec![];
 

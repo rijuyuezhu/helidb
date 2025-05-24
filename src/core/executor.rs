@@ -1,3 +1,8 @@
+//! SQL statement execution functionality.
+//!
+//! Contains the SQLExecutor that handles execution of parsed SQL statements
+//! against the database.
+
 mod create_table;
 mod delete;
 mod drop_table;
@@ -11,6 +16,12 @@ use crate::error::{DBResult, DBSingleError};
 use crate::utils::WriteHandle;
 use sqlparser::ast;
 
+/// Executes SQL statements against a database.
+///
+/// Manages:
+/// - Database state
+/// - Statement execution
+/// - Result output
 #[derive(Default)]
 pub struct SQLExecutor<'a, 'b> {
     sql_statements: &'a str,
@@ -20,6 +31,11 @@ pub struct SQLExecutor<'a, 'b> {
 }
 
 impl<'a, 'b> SQLExecutor<'a, 'b> {
+    /// Creates a new SQLExecutor instance.
+    ///
+    /// # Arguments
+    /// * `sql_statements` - SQL statements to execute
+    /// * `output_target` - Handle for writing execution results
     pub fn new(sql_statements: &'a str, output_target: WriteHandle<'b>) -> Self {
         SQLExecutor {
             sql_statements,
@@ -31,6 +47,15 @@ impl<'a, 'b> SQLExecutor<'a, 'b> {
 }
 
 impl SQLExecutor<'_, '_> {
+    /// Executes a single SQL statement.
+    ///
+    /// # Arguments
+    /// * `statement` - Parsed SQL statement to execute
+    ///
+    /// # Errors
+    /// Returns error for:
+    /// - Unsupported statement types
+    /// - Execution failures
     pub fn execute_statement(&mut self, statement: &ast::Statement) -> DBResult<()> {
         use ast::Statement::*;
         match statement {
@@ -46,6 +71,7 @@ impl SQLExecutor<'_, '_> {
             )))?,
         }
     }
+    /// Gets the count of outputted tables from executed Query statements.
     pub fn get_output_count(&self) -> usize {
         self.output_count
     }

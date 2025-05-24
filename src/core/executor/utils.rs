@@ -1,6 +1,20 @@
+//! Utility functions for SQL execution.
+//!
+//! Contains helper methods used across different executor operations.
+
 use super::SQLExecutor;
 
 impl SQLExecutor<'_, '_> {
+    /// Extracts SQL text content from a source span.
+    ///
+    /// # Arguments
+    /// * `span` - Source location span from SQL parser
+    ///
+    /// # Returns
+    /// Some(String) with the text content if span is valid, None otherwise
+    ///
+    /// # Note
+    /// Only works for single-line spans within the original SQL text
     pub(super) fn get_content_from_span(&self, span: sqlparser::tokenizer::Span) -> Option<String> {
         let start = span.start;
         let end = span.end;

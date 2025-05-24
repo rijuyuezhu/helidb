@@ -1,9 +1,27 @@
+//! SELECT query execution.
+//!
+//! Handles parsing and execution of SELECT queries including:
+//! - Projection
+//! - Filtering
+//! - Ordering
+//! - Result output
+
 use super::SQLExecutor;
 use crate::core::data_structure::{ColumnInfo, ColumnTypeSpecific, Table, Value};
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast::{self, Spanned};
 use std::fmt::Write;
 
+/// Applies ORDER BY clauses to a table.
+///
+/// # Arguments
+/// * `table` - Table to sort
+/// * `order_by` - Optional ORDER BY clauses
+///
+/// # Errors
+/// Returns error for:
+/// - Unsupported ORDER BY types
+/// - Invalid sort expressions
 fn execute_order_by(table: &mut Table, order_by: &Option<ast::OrderBy>) -> DBResult<()> {
     let order_by = match order_by.as_ref().map(|x| &x.kind) {
         Some(x) => x,
@@ -30,6 +48,19 @@ fn execute_order_by(table: &mut Table, order_by: &Option<ast::OrderBy>) -> DBRes
 }
 
 impl SQLExecutor<'_, '_> {
+    /// Gets the source table for a SELECT query.
+    ///
+    /// # Arguments
+    /// * `select` - Parsed SELECT statement
+    ///
+    /// # Returns
+    /// Reference to source table
+    ///
+    /// # Errors
+    /// Returns error for:
+    /// - Multiple tables in FROM
+    /// - Unsupported table types
+    /// - Table not found
     fn parse_table_from_select(&self, select: &ast::Select) -> DBResult<&Table> {
         match select.from.len() {
             0 => Ok(Table::get_dummy()),
@@ -56,6 +87,20 @@ impl SQLExecutor<'_, '_> {
         }
     }
 
+    /// Constructs result table from SELECT query.
+    ///
+    /// # Arguments
+    /// * `table` - Source table
+    /// * `select` - Parsed SELECT statement
+    ///
+    /// # Returns
+    /// New table containing query results
+    ///
+    /// # Errors
+    /// Returns error for:
+    /// - Unsupported projection types
+    /// - Invalid expressions
+    /// - Filter evaluation failures
     fn get_query_table(&self, table: &Table, select: &ast::Select) -> DBResult<Table> {
         type CalcFunc<'a> = Box<dyn Fn(&[Value]) -> DBResult<Value> + 'a>;
 
@@ -108,6 +153,16 @@ impl SQLExecutor<'_, '_> {
         Ok(new_table)
     }
 
+    /// Executes a SELECT query.
+    ///
+    /// # Arguments
+    /// * `query` - Parsed query to execute
+    ///
+    /// # Errors
+    /// Returns error for:
+    /// - Non-SELECT queries
+    /// - Unsupported query features
+    /// - Evaluation failures
     pub(super) fn execute_query(&mut self, query: &ast::Query) -> DBResult<()> {
         let ast::SetExpr::Select(select) = query.body.as_ref() else {
             Err(DBSingleError::UnsupportedOPError(

@@ -1,9 +1,25 @@
+//! UPDATE statement execution.
+//!
+//! Handles parsing and execution of UPDATE statements.
+
 use super::SQLExecutor;
 use crate::core::data_structure::Table;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
 impl SQLExecutor<'_, '_> {
+    /// Parses and validates the target table from UPDATE statement.
+    ///
+    /// # Arguments
+    /// * `table` - Table reference from UPDATE statement
+    ///
+    /// # Returns
+    /// Mutable reference to the table
+    ///
+    /// # Errors
+    /// Returns error for:
+    /// - Unsupported table types
+    /// - Table not found
     fn parse_table_in_ast(&mut self, table: &ast::TableWithJoins) -> DBResult<&mut Table> {
         let ast::TableFactor::Table {
             name: ref table_name,
@@ -23,6 +39,17 @@ impl SQLExecutor<'_, '_> {
         Ok(table)
     }
 
+    /// Executes an UPDATE statement.
+    ///
+    /// # Arguments
+    /// * `update_statement` - Parsed UPDATE statement
+    ///
+    /// # Errors
+    /// Returns error for:
+    /// - Invalid table references
+    /// - Column not found
+    /// - Invalid value assignments
+    /// - Constraint violations
     pub(super) fn execute_update(&mut self, update_statement: &ast::Statement) -> DBResult<()> {
         let ast::Statement::Update {
             table,

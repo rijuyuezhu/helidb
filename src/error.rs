@@ -1,12 +1,21 @@
-use sqlparser;
+//! Error types and handling for database operations.
+//!
+//! Provides structured error types and utilities for error handling
+//! throughout the database system.
 
+use sqlparser;
 use sqlparser::parser::ParserError;
 
+/// Represents a single database operation error.
 #[derive(Debug)]
 pub enum DBSingleError {
+    /// Formatting error occurred during output generation
     FmtError(std::fmt::Error),
+    /// Errors required by the OJ system
     RequiredError(String),
+    /// Attempted to use an unsupported operation
     UnsupportedOPError(String),
+    /// Other miscellaneous database error
     OtherError(String),
 }
 
@@ -36,8 +45,13 @@ impl From<ParserError> for DBSingleError {
     }
 }
 
+/// Collection of multiple database errors.
+///
+/// Used when operations can fail in multiple ways and we want to
+/// preserve all error information.
 #[derive(Debug, Default)]
 pub struct DBError {
+    /// List of individual errors that occurred
     pub errors: Vec<DBSingleError>,
 }
 
@@ -59,6 +73,10 @@ impl<T: Into<DBSingleError>> From<T> for DBError {
 }
 
 impl DBError {
+    /// Combines another DBError into this one.
+    ///
+    /// # Arguments
+    /// * `other` - Error to merge into this one
     pub fn join(&mut self, other: DBError) {
         self.errors.extend(other.errors);
     }
@@ -66,8 +84,22 @@ impl DBError {
 
 impl std::error::Error for DBError {}
 
+/// Result type alias for database operations.
 pub type DBResult<T> = Result<T, DBError>;
 
+/// Combines two database results, preserving all errors.
+///
+/// If both results are errors, their errors are merged.
+/// Otherwise returns the first error or success.
+///
+/// # Examples
+/// ```
+/// # use simple_db::error::{join_result, DBResult, DBSingleError};
+/// let ok: DBResult<()> = Ok(());
+/// let err: DBResult<()> = Err(DBSingleError::OtherError("test".into()).into());
+///
+/// assert!(join_result(ok, err).is_err());
+/// ```
 pub fn join_result(res1: DBResult<()>, res2: DBResult<()>) -> DBResult<()> {
     match res1 {
         Ok(()) => res2,
