@@ -203,35 +203,6 @@ impl Table {
         })
     }
 
-    /// Gets indices of rows matching a condition.
-    ///
-    /// # Arguments
-    /// * `cond` - Optional SQL condition expression
-    ///
-    /// # Returns
-    /// Vector of row indices matching the condition
-    ///
-    /// # Note
-    /// Returns all row indices if cond is None
-    pub fn get_row_satisfying_cond(&self, cond: Option<&ast::Expr>) -> DBResult<Vec<usize>> {
-        if cond.is_none() {
-            return Ok(self.rows.keys().copied().collect());
-        }
-        let cond = cond.unwrap();
-
-        let mut result = vec![];
-        for (&i, row) in self.rows.iter() {
-            if self
-                .calc_expr_for_row(row, cond)?
-                .try_to_bool()?
-                .is_some_and(|v| v)
-            {
-                result.push(i)
-            }
-        }
-        Ok(result)
-    }
-
     /// Inserts a row without validation checks.
     ///
     /// # Arguments
@@ -305,66 +276,6 @@ impl Table {
             self.check_column_with_value(i, elem, None)?;
         }
         self.insert_row_unchecked(row)
-    }
-
-    /// Deletes rows by their indices.
-    ///
-    /// # Arguments
-    /// * `row_idxs` - Indices of rows to delete
-    pub fn delete_rows(&mut self, row_idxs: &[usize]) -> DBResult<()> {
-        for row_idx in row_idxs {
-            if self.rows.remove(row_idx).is_none() {
-                Err(DBSingleError::OtherError(format!(
-                    "row index {} not found",
-                    row_idx
-                )))?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Updates rows by their indices.
-    ///
-    /// # Arguments
-    /// * `row_idxs` - Indices of rows to update
-    /// * `assignments` - List of assignments to apply
-    pub fn update_rows(
-        &mut self,
-        row_idxs: &[usize],
-        assignments: &[ast::Assignment],
-    ) -> DBResult<()> {
-        for &row_idx in row_idxs {
-            // safety here: any self is used to calculate expressions,
-            // where only the columns_info are used.
-            let any_self = unsafe { &*(self as *const Table) };
-
-            let row = self.rows.get_mut(&row_idx).ok_or_else(|| {
-                DBSingleError::OtherError(format!("row index {} not found", row_idx))
-            })?;
-            let orig_row = row.clone();
-
-            for ast::Assignment {
-                target,
-                value: expr,
-            } in assignments
-            {
-                let ast::AssignmentTarget::ColumnName(column_name) = target else {
-                    Err(DBSingleError::UnsupportedOPError(
-                        "only support column name".into(),
-                    ))?
-                };
-                let column_name = column_name.to_string();
-
-                let index = any_self.get_column_index(&column_name).ok_or_else(|| {
-                    DBSingleError::OtherError(format!("column not found: {}", column_name))
-                })?;
-
-                let value = any_self.calc_expr_for_row(&orig_row, expr)?;
-                any_self.check_column_with_value(index, &value, Some(row_idx))?;
-                row[index] = value;
-            }
-        }
-        Ok(())
     }
 
     /// Sorts table rows according to ORDER BY clauses.

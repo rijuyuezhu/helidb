@@ -9,3 +9,4 @@ lazy_static = "1.5"
 bincode = "2.0"
 clap = { version = "4.5", features = ["derive"] }
 rustyline = "15.0"
+rayon = "1.10"

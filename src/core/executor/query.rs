@@ -126,8 +126,9 @@ impl SQLExecutor {
 
         let mut new_table = Table::new(new_column_infos);
 
-        let rows = table
-            .get_row_satisfying_cond(select.selection.as_ref())?
+        let rows = self
+            .table_manager
+            .get_row_satisfying_cond(table, select.selection.as_ref())?
             .into_iter()
             .map(|idx| table.rows.get(&idx).expect("row should be found"));
 

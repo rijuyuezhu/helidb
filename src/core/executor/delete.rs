@@ -30,8 +30,10 @@ impl SQLExecutor {
             let table = self.database.get_table_mut(&table_name).ok_or_else(|| {
                 DBSingleError::OtherError(format!("table not found: {}", table_name))
             })?;
-            let row_to_delete = table.get_row_satisfying_cond(delete.selection.as_ref())?;
-            table.delete_rows(&row_to_delete)?;
+            let row_to_delete = self
+                .table_manager
+                .get_row_satisfying_cond(table, delete.selection.as_ref())?;
+            self.table_manager.delete_rows(table, &row_to_delete)?;
         }
 
         Ok(())

@@ -50,9 +50,16 @@ impl SQLExecutor {
             panic!("Should not reach here");
         };
 
+        // Safety: &mut self below only uses self.database, which do not
+        // affect the const of self.table_manager
+        let any_self = unsafe { &mut *(self as *mut Self) };
         let table = self.parse_table_in_ast(table)?;
-        let row_selected = table.get_row_satisfying_cond(selection.as_ref())?;
-        table.update_rows(&row_selected, assignments)?;
+        let row_selected = any_self
+            .table_manager
+            .get_row_satisfying_cond(table, selection.as_ref())?;
+        any_self
+            .table_manager
+            .update_rows(table, &row_selected, assignments)?;
 
         Ok(())
     }

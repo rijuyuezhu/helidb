@@ -14,6 +14,8 @@ pub struct SQLExecConfig {
     pub(crate) reinit: bool,
     /// Whether to write back to the storage path
     pub(crate) write_back: bool,
+    /// Whether to execute queries in parallel
+    pub(crate) parallel: bool,
 }
 
 impl Default for SQLExecConfig {
@@ -22,6 +24,7 @@ impl Default for SQLExecConfig {
             storage_path: None,
             reinit: false,
             write_back: true,
+            parallel: false,
         }
     }
 }
@@ -65,6 +68,18 @@ impl SQLExecConfig {
     /// Self for method chaining
     pub fn write_back(mut self, write_back: bool) -> Self {
         self.write_back = write_back;
+        self
+    }
+
+    /// Sets whether to execute queries in parallel.
+    ///
+    /// # Arguments
+    /// * `parallel` - true to enable parallel execution, false otherwise
+    ///
+    /// # Returns
+    /// Self for method chaining
+    pub fn parallel(mut self, parallel: bool) -> Self {
+        self.parallel = parallel;
         self
     }
 

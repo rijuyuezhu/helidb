@@ -19,22 +19,28 @@ struct Cli {
     /// Do not write back to the storage path (only for REPL)
     #[arg(long)]
     no_write_back: bool,
+
+    /// Execute queries in parallel (only for REPL)
+    #[arg(long)]
+    parallel: bool,
 }
 
 fn oj_test(file_name: &str) {
     let sql_statements = std::fs::read_to_string(file_name).expect("Unable to read file");
     let mut handle = SQLExecConfig::new()
+        .parallel(true)
         .connect()
         .expect("Failed to connect to database");
     let (_, output) = handle.execute_sql_combine_outputs(&sql_statements);
     print!("{}", output);
 }
 
-fn repl(storage_path: Option<PathBuf>, reinit: bool, no_write_back: bool) {
+fn repl(cli: Cli) {
     let mut handle = SQLExecConfig::new()
-        .storage_path(storage_path)
-        .reinit(reinit)
-        .write_back(!no_write_back)
+        .storage_path(cli.storage_path)
+        .reinit(cli.reinit)
+        .write_back(!cli.no_write_back)
+        .parallel(cli.parallel)
         .connect()
         .expect("Failed to connect to database");
     let mut rl = rustyline::DefaultEditor::new().unwrap();
@@ -69,6 +75,6 @@ fn main() {
         oj_test(&file_name);
     } else {
         println!("No file name provided. Entering REPL...");
-        repl(cli.storage_path, cli.reinit, cli.no_write_back);
+        repl(cli);
     }
 }

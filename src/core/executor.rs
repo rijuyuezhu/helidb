@@ -12,6 +12,9 @@ mod update;
 mod utils;
 
 use crate::core::data_structure::Database;
+use crate::core::data_structure::table_manager::{
+    ParallelTableManager, SequentialTableManager, TableManager,
+};
 use crate::core::parser::SQLParser;
 use crate::core::storage;
 use crate::error::join_result;
@@ -23,12 +26,13 @@ use std::fmt::Write;
 /// SQLExecutor is responsible for executing SQL statements against a database.
 ///
 /// It handles parsing, execution, and output formatting.
-#[derive(Default)]
 pub struct SQLExecutor {
     /// The database instance to execute SQL statements against.
     database: Database,
     /// Configuration for SQL execution, including storage path and reinitialization options.
     config: SQLExecConfig,
+
+    table_manager: Box<dyn TableManager>,
 }
 
 #[derive(Default)]
@@ -57,7 +61,18 @@ impl SQLExecutor {
                 .as_ref()
                 .map_or_else(|| Ok(Database::new()), storage::load_database_from_path)?
         };
-        Ok(SQLExecutor { database, config })
+
+        let table_manager: Box<dyn TableManager> = if config.parallel {
+            Box::new(ParallelTableManager)
+        } else {
+            Box::new(SequentialTableManager)
+        };
+
+        Ok(SQLExecutor {
+            database,
+            config,
+            table_manager,
+        })
     }
 }
 
