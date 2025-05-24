@@ -9,6 +9,8 @@ use sqlparser::parser::ParserError;
 /// Represents a single database operation error.
 #[derive(Debug)]
 pub enum DBSingleError {
+    /// IO error occurred during input/output operations
+    IOError(std::io::Error),
     /// Formatting error occurred during output generation
     FmtError(std::fmt::Error),
     /// Errors required by the OJ system
@@ -23,6 +25,7 @@ impl std::fmt::Display for DBSingleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use DBSingleError::*;
         match self {
+            IOError(e) => write!(f, "IOError: {}", e),
             FmtError(e) => write!(f, "FmtError: {}", e),
             RequiredError(e) => write!(f, "Error: {}", e),
             UnsupportedOPError(e) => write!(f, "UnsupportedOPError: {}", e),
@@ -32,6 +35,12 @@ impl std::fmt::Display for DBSingleError {
 }
 
 impl std::error::Error for DBSingleError {}
+
+impl From<std::io::Error> for DBSingleError {
+    fn from(e: std::io::Error) -> Self {
+        DBSingleError::IOError(e)
+    }
+}
 
 impl From<std::fmt::Error> for DBSingleError {
     fn from(e: std::fmt::Error) -> Self {

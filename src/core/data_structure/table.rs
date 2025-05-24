@@ -4,12 +4,13 @@
 
 use super::{ColumnInfo, Value, ValueNotNull};
 use crate::error::{DBResult, DBSingleError};
+use bincode::{Decode, Encode};
 use lazy_static::lazy_static;
 use sqlparser::ast;
 use std::collections::HashMap;
 
 /// Represents a database table with rows and columns.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Decode, Encode)]
 pub struct Table {
     /// Vector of all rows in the table
     pub rows: Vec<Vec<Value>>,

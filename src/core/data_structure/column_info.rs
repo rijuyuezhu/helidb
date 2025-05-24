@@ -3,10 +3,11 @@
 //! Provides types for representing column definitions and data types.
 
 use crate::error::{DBResult, DBSingleError};
+use bincode::{Decode, Encode};
 use sqlparser::ast;
 
 /// Specific type information for database columns.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Decode, Encode)]
 pub enum ColumnTypeSpecific {
     /// Integer type with optional display width
     Int { display_width: Option<u64> },
@@ -59,7 +60,7 @@ impl ColumnTypeSpecific {
 }
 
 /// Metadata about a database column.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Decode, Encode)]
 pub struct ColumnInfo {
     /// Name of the column
     pub name: String,

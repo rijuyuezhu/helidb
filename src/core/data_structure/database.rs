@@ -4,10 +4,11 @@
 
 use super::{ColumnInfo, Table};
 use crate::error::{DBResult, DBSingleError};
+use bincode::{Decode, Encode};
 use std::collections::HashMap;
 
 /// Represents a database containing multiple tables.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Decode, Encode)]
 pub struct Database {
     /// Map of table names to Table instances
     pub tables: HashMap<String, Table>,

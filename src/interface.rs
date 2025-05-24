@@ -2,6 +2,7 @@
 
 use crate::core::executor::SQLExecutor;
 use crate::core::parser::SQLParser;
+use crate::core::storage;
 use crate::error::{DBResult, join_result};
 use crate::utils::WriteHandle;
 use std::fmt::Write;
@@ -12,9 +13,11 @@ use std::fmt::Write;
 #[derive(Default)]
 pub struct SQLExecConfig<'a> {
     /// Target for normal output (query results, status messages)
-    pub output_target: WriteHandle<'a>,
+    output_target: WriteHandle<'a>,
     /// Target for error output (parse/execution errors)
-    pub err_output_target: WriteHandle<'a>,
+    err_output_target: WriteHandle<'a>,
+    /// Path to the storage file, or None if not using file storage
+    storage_path: Option<String>,
 }
 
 impl<'a> SQLExecConfig<'a> {
@@ -49,6 +52,18 @@ impl<'a> SQLExecConfig<'a> {
         self
     }
 
+    /// Sets the storage path for the database.
+    ///
+    /// # Arguments
+    /// * `storage_path` - Path to the storage file (None if not using file storage)
+    ///
+    /// # Returns
+    /// Mutable reference to self for method chaining
+    pub fn storage_path(&mut self, storage_path: Option<String>) -> &mut Self {
+        self.storage_path = storage_path;
+        self
+    }
+
     /// Executes one or more SQL statements.
     ///
     /// Normal output is written to the configured output target,
@@ -71,7 +86,24 @@ impl<'a> SQLExecConfig<'a> {
             parser.parse(sql_statements)?
         };
 
-        let mut executor = SQLExecutor::new(sql_statements, self.output_target.clone());
+        let mut executor = match &self.storage_path {
+            Some(path) => match std::fs::File::open(path) {
+                Ok(f) => {
+                    let database = storage::load_database_from(f)?;
+                    SQLExecutor::from_database(database, sql_statements, self.output_target.clone())
+                }
+                Err(e) => match e.kind() {
+                    std::io::ErrorKind::NotFound => {
+                        SQLExecutor::new(sql_statements, self.output_target.clone())
+                    }
+                    _ => {
+                        writeln!(self.err_output_target, "Error opening storage file: {}", e)?;
+                        return Err(e.into());
+                    }
+                },
+            },
+            None => SQLExecutor::new(sql_statements, self.output_target.clone()),
+        };
 
         let mut result = Ok(());
         for statement in statements.iter() {
@@ -79,6 +111,9 @@ impl<'a> SQLExecConfig<'a> {
         }
         if executor.get_output_count() == 0 {
             writeln!(self.output_target, "There are no results to be displayed.")?;
+        }
+        if let Some(path) = &self.storage_path {
+            storage::write_database_to(std::fs::File::create(path)?, executor.get_database())?;
         }
         result
     }

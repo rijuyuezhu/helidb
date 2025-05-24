@@ -4,10 +4,11 @@
 //! all possible data values in the database system.
 
 use crate::error::{DBResult, DBSingleError};
+use bincode::{Decode, Encode};
 use std::borrow::Cow;
 
 /// A non-null database value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Decode, Encode)]
 pub enum ValueNotNull {
     /// 32-bit integer value
     Int(i32),
@@ -27,7 +28,7 @@ impl std::fmt::Display for ValueNotNull {
 /// A nullable database value.
 ///
 /// Wraps `ValueNotNull` in an Option to represent SQL NULL values.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Decode, Encode)]
 pub struct Value(pub Option<ValueNotNull>);
 
 impl Value {
