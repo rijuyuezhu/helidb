@@ -7,7 +7,6 @@
 pub mod column_info;
 pub mod database;
 pub mod table;
-pub mod table_manager;
 pub mod value;
 
 pub use column_info::{ColumnInfo, ColumnTypeSpecific};

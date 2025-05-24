@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, HashMap};
 #[derive(Debug, Clone, Decode, Encode)]
 pub struct Table {
     /// All rows in the table, with row number increasing
-    pub rows: BTreeMap<usize, Vec<Value>>,
+    pub rows: BTreeMap<usize, Option<Vec<Value>>>,
     pub row_idx_acc: usize,
 
     /// Metadata about each column
@@ -45,7 +45,7 @@ impl Table {
     pub fn get_dummy() -> &'static Self {
         lazy_static! {
             static ref DUMMY: Table = Table {
-                rows: [(0, vec![])].into_iter().collect(),
+                rows: [(0, Some(vec![]))].into_iter().collect(),
                 row_idx_acc: 1,
                 columns_info: vec![],
                 column_rmap: HashMap::new(),
@@ -203,21 +203,14 @@ impl Table {
         })
     }
 
-    /// Inserts a row without validation checks.
-    ///
-    /// # Arguments
-    /// * `row` - Row values to insert
-    ///
-    /// # Returns
-    /// Index of the newly inserted row
-    ///
-    /// # Safety
-    /// Does not validate constraints - caller must ensure validity
-    pub fn insert_row_unchecked(&mut self, row: Vec<Value>) -> DBResult<usize> {
-        let row_number = self.row_idx_acc;
-        self.row_idx_acc += 1;
-        self.rows.insert(row_number, row);
-        Ok(row_number)
+    pub fn is_row_satisfy_cond(&self, row: &[Value], cond: Option<&ast::Expr>) -> DBResult<bool> {
+        Ok(match cond {
+            Some(expr) => self
+                .calc_expr_for_row(row, expr)?
+                .try_to_bool()?
+                .unwrap_or(false),
+            None => true,
+        })
     }
 
     /// Validates a value against column constraints.
@@ -242,7 +235,11 @@ impl Table {
             )))?
         }
         if self.columns_info[col_idx].unique {
-            for (&i, orig_row) in self.rows.iter() {
+            for (&i, orig_row) in self
+                .rows
+                .iter()
+                .filter_map(|(i, row)| row.as_ref().map(|r| (i, r)))
+            {
                 if skip_row.is_some_and(|s| s == i) {
                     continue;
                 }
@@ -256,81 +253,6 @@ impl Table {
         }
         Ok(())
     }
-
-    /// Inserts a row with full validation.
-    ///
-    /// # Arguments
-    /// * `row` - Row values to insert
-    ///
-    /// # Returns
-    /// Index of the newly inserted row
-    pub fn insert_row(&mut self, row: Vec<Value>) -> DBResult<usize> {
-        if row.len() != self.columns_info.len() {
-            Err(DBSingleError::OtherError(format!(
-                "row length {} not match columns num {}",
-                row.len(),
-                self.columns_info.len()
-            )))?
-        }
-        for (i, elem) in row.iter().enumerate() {
-            self.check_column_with_value(i, elem, None)?;
-        }
-        self.insert_row_unchecked(row)
-    }
-
-    /// Sorts table rows according to ORDER BY clauses.
-    ///
-    /// # Arguments
-    /// * `keys` - Pairs of (expression, is_ascending) defining sort order
-    pub fn convert_order_by(&mut self, keys: &[(&ast::Expr, bool)]) -> DBResult<()> {
-        let mut rows = std::mem::take(&mut self.rows)
-            .into_values()
-            .collect::<Vec<_>>();
-
-        let mut cached_entries = vec![];
-
-        // beforehand check: to avoid panic when sorting
-        for &(expr, _) in keys {
-            let mut row_entries = vec![];
-            for row in &rows {
-                let v = self.calc_expr_for_row(row, expr)?;
-                if row_entries
-                    .last()
-                    .is_some_and(|prev: &Value| prev.partial_cmp(&v).is_none())
-                {
-                    Err(DBSingleError::OtherError(format!(
-                        "invalid value type for order by: {:?}",
-                        v
-                    )))?;
-                }
-                row_entries.push(v);
-            }
-            cached_entries.push(row_entries);
-        }
-        let row_start = &rows[0] as *const Vec<Value>;
-
-        rows.sort_by(|a, b| {
-            let a_idx = unsafe { (a as *const Vec<Value>).offset_from(row_start) } as usize;
-            let b_idx = unsafe { (b as *const Vec<Value>).offset_from(row_start) } as usize;
-            for (expr_idx, &(_, is_asc)) in keys.iter().enumerate() {
-                let av = &cached_entries[expr_idx][a_idx];
-                let bv = &cached_entries[expr_idx][b_idx];
-                let mut ord = av.partial_cmp(bv).unwrap();
-                if !is_asc {
-                    ord = ord.reverse();
-                }
-                if ord != std::cmp::Ordering::Equal {
-                    return ord;
-                }
-            }
-            std::cmp::Ordering::Equal
-        });
-
-        self.rows = rows.into_iter().enumerate().collect();
-        self.row_idx_acc = self.rows.len();
-
-        Ok(())
-    }
 }
 
 impl std::fmt::Display for Table {
@@ -339,7 +261,7 @@ impl std::fmt::Display for Table {
         let mut max_width = vec![];
         for i in 0..col_num {
             let mut width = std::cmp::max(3, self.columns_info[i].name.len());
-            for row in self.rows.values() {
+            for row in self.rows.values().filter_map(|r| r.as_ref()) {
                 width = std::cmp::max(width, row[i].to_string().len());
             }
             max_width.push(width);
@@ -360,7 +282,7 @@ impl std::fmt::Display for Table {
         }
         writeln!(f, "|")?;
 
-        for row in self.rows.values() {
+        for row in self.rows.values().filter_map(|r| r.as_ref()) {
             for (entry, width) in row.iter().zip(&max_width) {
                 write!(f, "| {:<width$} ", entry.to_string(), width = width)?;
             }

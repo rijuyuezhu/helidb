@@ -7,42 +7,42 @@
 //! - Result output
 
 use super::{SQLExecutor, SQLExecutorState};
-use crate::core::data_structure::{ColumnInfo, ColumnTypeSpecific, Table, Value};
+use crate::core::data_structure::{ColumnInfo, ColumnTypeSpecific, Table};
+use crate::core::executor::table_manager::CalcFunc;
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast::{self, Spanned};
 use std::fmt::Write;
 
-/// Applies ORDER BY clauses to a table.
-///
-/// # Arguments
-/// * `table` - Table to sort
-/// * `order_by` - Optional ORDER BY clauses
-fn execute_order_by(table: &mut Table, order_by: &Option<ast::OrderBy>) -> DBResult<()> {
-    let order_by = match order_by.as_ref().map(|x| &x.kind) {
-        Some(x) => x,
-        None => return Ok(()),
-    };
-
-    let ast::OrderByKind::Expressions(order_by_exprs) = order_by else {
-        Err(DBSingleError::UnsupportedOPError(
-            "only support order by expressions".into(),
-        ))?
-    };
-
-    let keys = order_by_exprs
-        .iter()
-        .map(|order_by_expr| {
-            let expr = &order_by_expr.expr;
-            let is_asc = order_by_expr.options.asc.unwrap_or(true);
-            (expr, is_asc)
-        })
-        .collect::<Vec<_>>();
-
-    table.convert_order_by(&keys)?;
-    Ok(())
-}
-
 impl SQLExecutor {
+    /// Applies ORDER BY clauses to a table.
+    ///
+    /// # Arguments
+    /// * `table` - Table to sort
+    /// * `order_by` - Optional ORDER BY clauses
+    fn execute_order_by(&self, table: &mut Table, order_by: &Option<ast::OrderBy>) -> DBResult<()> {
+        let order_by = match order_by.as_ref().map(|x| &x.kind) {
+            Some(x) => x,
+            None => return Ok(()),
+        };
+
+        let ast::OrderByKind::Expressions(order_by_exprs) = order_by else {
+            Err(DBSingleError::UnsupportedOPError(
+                "only support order by expressions".into(),
+            ))?
+        };
+
+        let keys = order_by_exprs
+            .iter()
+            .map(|order_by_expr| {
+                let expr = &order_by_expr.expr;
+                let is_asc = order_by_expr.options.asc.unwrap_or(true);
+                (expr, is_asc)
+            })
+            .collect::<Vec<_>>();
+
+        self.table_manager.convert_order_by(table, &keys)?;
+        Ok(())
+    }
     /// Gets the source table for a SELECT query.
     ///
     /// # Arguments
@@ -91,9 +91,7 @@ impl SQLExecutor {
         select: &ast::Select,
         executor_state: &SQLExecutorState,
     ) -> DBResult<Table> {
-        type CalcFunc<'a> = Box<dyn Fn(&[Value]) -> DBResult<Value> + 'a>;
-
-        let mut new_column_infos = vec![];
+        let mut columns_info = vec![];
         let mut calc_funcs: Vec<CalcFunc> = vec![];
 
         for select_item in &select.projection {
@@ -101,7 +99,7 @@ impl SQLExecutor {
             match select_item {
                 Wildcard(_) => {
                     for (i, column) in table.columns_info.iter().enumerate() {
-                        new_column_infos.push(column.clone());
+                        columns_info.push(column.clone());
                         calc_funcs.push(Box::new(move |row| Ok(row[i].clone())));
                     }
                 }
@@ -109,7 +107,7 @@ impl SQLExecutor {
                     let column_name = self
                         .get_content_from_span(expr.span(), executor_state)
                         .unwrap_or_else(|| expr.to_string());
-                    new_column_infos.push(ColumnInfo {
+                    columns_info.push(ColumnInfo {
                         name: column_name,
                         nullable: true,                         // dummy setting
                         unique: false,                          // dummy setting
@@ -123,23 +121,12 @@ impl SQLExecutor {
                 )))?,
             }
         }
-
-        let mut new_table = Table::new(new_column_infos);
-
-        let rows = self
-            .table_manager
-            .get_row_satisfying_cond(table, select.selection.as_ref())?
-            .into_iter()
-            .map(|idx| table.rows.get(&idx).expect("row should be found"));
-
-        for row in rows {
-            let mut new_row = vec![];
-            for calc_func in &calc_funcs {
-                new_row.push(calc_func(row)?);
-            }
-            new_table.insert_row_unchecked(new_row)?;
-        }
-
+        let new_table = self.table_manager.construct_rows_from_calc_func(
+            table,
+            columns_info,
+            calc_funcs,
+            select.selection.as_ref(),
+        )?;
         Ok(new_table)
     }
 
@@ -161,9 +148,9 @@ impl SQLExecutor {
 
         let table = self.parse_table_from_select(select)?;
         let mut new_table = self.get_query_table(table, select, executor_state)?;
+        self.execute_order_by(&mut new_table, &query.order_by)?;
 
-        execute_order_by(&mut new_table, &query.order_by)?;
-
+        // output
         if new_table.get_row_num() > 0 {
             // output the new_table
             if executor_state.output_count > 0 {

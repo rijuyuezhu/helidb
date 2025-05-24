@@ -8,13 +8,11 @@ mod delete;
 mod drop_table;
 mod insert;
 mod query;
+mod table_manager;
 mod update;
 mod utils;
 
 use crate::core::data_structure::Database;
-use crate::core::data_structure::table_manager::{
-    ParallelTableManager, SequentialTableManager, TableManager,
-};
 use crate::core::parser::SQLParser;
 use crate::core::storage;
 use crate::error::join_result;
@@ -22,6 +20,7 @@ use crate::error::{DBResult, DBSingleError};
 use crate::interface::SQLExecConfig;
 use sqlparser::ast;
 use std::fmt::Write;
+use table_manager::{ParallelTableManager, SequentialTableManager, TableManager};
 
 /// SQLExecutor is responsible for executing SQL statements against a database.
 ///
@@ -31,7 +30,7 @@ pub struct SQLExecutor {
     database: Database,
     /// Configuration for SQL execution, including storage path and reinitialization options.
     config: SQLExecConfig,
-
+    /// The table manager used for managing tables during execution.
     table_manager: Box<dyn TableManager>,
 }
 

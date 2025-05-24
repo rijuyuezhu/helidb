@@ -14,7 +14,7 @@ use sqlparser::ast;
 ///
 /// # Returns
 /// Tuple of `(nullable, unique)` flags
-fn get_column_info(opts: &[ast::ColumnOptionDef]) -> DBResult<(bool, bool)> {
+fn extract_column_info(opts: &[ast::ColumnOptionDef]) -> DBResult<(bool, bool)> {
     let mut nullable = true;
     let mut unique = false;
     for opt in opts {
@@ -57,7 +57,7 @@ impl SQLExecutor {
         for col in &create_table.columns {
             let name = col.name.to_string();
             let type_specific = ColumnTypeSpecific::from_column_def(col)?;
-            let (nullable, unique) = get_column_info(&col.options)?;
+            let (nullable, unique) = extract_column_info(&col.options)?;
             column_info.push(ColumnInfo {
                 name,
                 nullable,
