@@ -26,10 +26,10 @@ where
 }
 
 /// Loads a database from a file at the specified path.
-/// 
+///
 /// # Arguments
 /// * `path` - The path to the file from which the database will be loaded.
-/// 
+///
 /// # Returns
 /// The loaded database or an error if the operation fails.
 pub fn load_database_from_path<P>(path: P) -> DBResult<Database>

@@ -7,13 +7,14 @@ use crate::error::{DBResult, DBSingleError};
 use bincode::{Decode, Encode};
 use lazy_static::lazy_static;
 use sqlparser::ast;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// Represents a database table with rows and columns.
 #[derive(Debug, Clone, Decode, Encode)]
 pub struct Table {
-    /// Vector of all rows in the table
-    pub rows: Vec<Vec<Value>>,
+    /// All rows in the table, with row number increasing
+    pub rows: BTreeMap<usize, Vec<Value>>,
+    pub row_idx_acc: usize,
 
     /// Metadata about each column
     pub columns_info: Vec<ColumnInfo>,
@@ -33,7 +34,8 @@ impl Table {
             .map(|(i, col)| (col.name.clone(), i))
             .collect();
         Table {
-            rows: vec![],
+            rows: BTreeMap::new(),
+            row_idx_acc: 0,
             columns_info,
             column_rmap,
         }
@@ -43,7 +45,8 @@ impl Table {
     pub fn get_dummy() -> &'static Self {
         lazy_static! {
             static ref DUMMY: Table = Table {
-                rows: vec![vec![]],
+                rows: [(0, vec![])].into_iter().collect(),
+                row_idx_acc: 1,
                 columns_info: vec![],
                 column_rmap: HashMap::new(),
             };
@@ -212,12 +215,12 @@ impl Table {
     /// Returns all row indices if cond is None
     pub fn get_row_satisfying_cond(&self, cond: Option<&ast::Expr>) -> DBResult<Vec<usize>> {
         if cond.is_none() {
-            return Ok((0..self.rows.len()).collect());
+            return Ok(self.rows.keys().copied().collect());
         }
         let cond = cond.unwrap();
 
         let mut result = vec![];
-        for (i, row) in self.rows.iter().enumerate() {
+        for (&i, row) in self.rows.iter() {
             if self
                 .calc_expr_for_row(row, cond)?
                 .try_to_bool()?
@@ -240,8 +243,9 @@ impl Table {
     /// # Safety
     /// Does not validate constraints - caller must ensure validity
     pub fn insert_row_unchecked(&mut self, row: Vec<Value>) -> DBResult<usize> {
-        let row_number = self.rows.len();
-        self.rows.push(row);
+        let row_number = self.row_idx_acc;
+        self.row_idx_acc += 1;
+        self.rows.insert(row_number, row);
         Ok(row_number)
     }
 
@@ -267,7 +271,7 @@ impl Table {
             )))?
         }
         if self.columns_info[col_idx].unique {
-            for (i, orig_row) in self.rows.iter().enumerate() {
+            for (&i, orig_row) in self.rows.iter() {
                 if skip_row.is_some_and(|s| s == i) {
                     continue;
                 }
@@ -308,18 +312,14 @@ impl Table {
     /// # Arguments
     /// * `row_idxs` - Indices of rows to delete
     pub fn delete_rows(&mut self, row_idxs: &[usize]) -> DBResult<()> {
-        let row_idxs_to_delete = row_idxs
-            .iter()
-            .copied()
-            .collect::<std::collections::HashSet<_>>();
-
-        let rows = std::mem::take(&mut self.rows);
-        self.rows = rows
-            .into_iter()
-            .enumerate()
-            .filter(|(i, _)| !row_idxs_to_delete.contains(i))
-            .map(|(_, v)| v)
-            .collect();
+        for row_idx in row_idxs {
+            if self.rows.remove(row_idx).is_none() {
+                Err(DBSingleError::OtherError(format!(
+                    "row index {} not found",
+                    row_idx
+                )))?;
+            }
+        }
         Ok(())
     }
 
@@ -328,10 +328,21 @@ impl Table {
     /// # Arguments
     /// * `row_idxs` - Indices of rows to update
     /// * `assignments` - List of assignments to apply
-    pub fn update_rows(&mut self, row_idxs: &[usize], assignments: &[ast::Assignment]) -> DBResult<()> {
-
+    pub fn update_rows(
+        &mut self,
+        row_idxs: &[usize],
+        assignments: &[ast::Assignment],
+    ) -> DBResult<()> {
         for &row_idx in row_idxs {
-            let orig_row = self.rows[row_idx].clone();
+            // safety here: any self is used to calculate expressions,
+            // where only the columns_info are used.
+            let any_self = unsafe { &*(self as *const Table) };
+
+            let row = self.rows.get_mut(&row_idx).ok_or_else(|| {
+                DBSingleError::OtherError(format!("row index {} not found", row_idx))
+            })?;
+            let orig_row = row.clone();
+
             for ast::Assignment {
                 target,
                 value: expr,
@@ -344,13 +355,13 @@ impl Table {
                 };
                 let column_name = column_name.to_string();
 
-                let index = self.get_column_index(&column_name).ok_or_else(|| {
+                let index = any_self.get_column_index(&column_name).ok_or_else(|| {
                     DBSingleError::OtherError(format!("column not found: {}", column_name))
                 })?;
 
-                let value = self.calc_expr_for_row(&orig_row, expr)?;
-                self.check_column_with_value(index, &value, Some(row_idx))?;
-                self.rows[row_idx][index] = value;
+                let value = any_self.calc_expr_for_row(&orig_row, expr)?;
+                any_self.check_column_with_value(index, &value, Some(row_idx))?;
+                row[index] = value;
             }
         }
         Ok(())
@@ -361,12 +372,16 @@ impl Table {
     /// # Arguments
     /// * `keys` - Pairs of (expression, is_ascending) defining sort order
     pub fn convert_order_by(&mut self, keys: &[(&ast::Expr, bool)]) -> DBResult<()> {
+        let mut rows = std::mem::take(&mut self.rows)
+            .into_values()
+            .collect::<Vec<_>>();
+
         let mut cached_entries = vec![];
 
         // beforehand check: to avoid panic when sorting
         for &(expr, _) in keys {
             let mut row_entries = vec![];
-            for row in &self.rows {
+            for row in &rows {
                 let v = self.calc_expr_for_row(row, expr)?;
                 if row_entries
                     .last()
@@ -381,9 +396,9 @@ impl Table {
             }
             cached_entries.push(row_entries);
         }
-        let row_start = &self.rows[0] as *const Vec<Value>;
+        let row_start = &rows[0] as *const Vec<Value>;
 
-        self.rows.sort_by(|a, b| {
+        rows.sort_by(|a, b| {
             let a_idx = unsafe { (a as *const Vec<Value>).offset_from(row_start) } as usize;
             let b_idx = unsafe { (b as *const Vec<Value>).offset_from(row_start) } as usize;
             for (expr_idx, &(_, is_asc)) in keys.iter().enumerate() {
@@ -400,6 +415,9 @@ impl Table {
             std::cmp::Ordering::Equal
         });
 
+        self.rows = rows.into_iter().enumerate().collect();
+        self.row_idx_acc = self.rows.len();
+
         Ok(())
     }
 }
@@ -410,7 +428,7 @@ impl std::fmt::Display for Table {
         let mut max_width = vec![];
         for i in 0..col_num {
             let mut width = std::cmp::max(3, self.columns_info[i].name.len());
-            for row in &self.rows {
+            for row in self.rows.values() {
                 width = std::cmp::max(width, row[i].to_string().len());
             }
             max_width.push(width);
@@ -431,7 +449,7 @@ impl std::fmt::Display for Table {
         }
         writeln!(f, "|")?;
 
-        for row in &self.rows {
+        for row in self.rows.values() {
             for (entry, width) in row.iter().zip(&max_width) {
                 write!(f, "| {:<width$} ", entry.to_string(), width = width)?;
             }

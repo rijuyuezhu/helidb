@@ -129,7 +129,7 @@ impl SQLExecutor {
         let rows = table
             .get_row_satisfying_cond(select.selection.as_ref())?
             .into_iter()
-            .map(|idx| &table.rows[idx]);
+            .map(|idx| table.rows.get(&idx).expect("row should be found"));
 
         for row in rows {
             let mut new_row = vec![];

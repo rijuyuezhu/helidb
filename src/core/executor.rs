@@ -21,7 +21,7 @@ use sqlparser::ast;
 use std::fmt::Write;
 
 /// SQLExecutor is responsible for executing SQL statements against a database.
-/// 
+///
 /// It handles parsing, execution, and output formatting.
 #[derive(Default)]
 pub struct SQLExecutor {
@@ -43,7 +43,7 @@ struct SQLExecutorState<'a> {
 
 impl SQLExecutor {
     /// Creates a new SQLExecutor instance with the provided configuration.
-    /// 
+    ///
     /// # Arguments
     /// * `config` - Configuration for SQL execution, including storage path and reinitialization options.
     /// # Returns
@@ -88,10 +88,10 @@ impl SQLExecutor {
     }
 
     /// Executes a series of SQL statements and accumulates the output.
-    /// 
+    ///
     /// # Arguments
     /// * `sql_statements` - A string containing multiple SQL statements to execute.
-    /// 
+    ///
     /// # Returns
     /// A result containing the accumulated output of all executed statements.
     pub fn execute_sql(&mut self, sql_statements: &str) -> DBResult<String> {
@@ -129,7 +129,7 @@ impl SQLExecutor {
 
 impl Drop for SQLExecutor {
     /// Drops the SQLExecutor, writing back the database to the storage path if configured.
-    /// 
+    ///
     /// If `write_back` is false, no action is taken.
     fn drop(&mut self) {
         if !self.config.write_back {
