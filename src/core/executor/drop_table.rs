@@ -11,11 +11,6 @@ impl SQLExecutor {
     ///
     /// # Arguments
     /// * `drop_statement` - Parsed DROP statement
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Unsupported object types (only tables supported)
-    /// - Non-existent tables
     pub(super) fn execute_drop_table(&mut self, drop_statement: &ast::Statement) -> DBResult<()> {
         let ast::Statement::Drop {
             object_type, names, ..

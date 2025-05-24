@@ -14,9 +14,6 @@ use sqlparser::ast;
 ///
 /// # Returns
 /// Tuple of `(nullable, unique)` flags
-///
-/// # Errors
-/// Returns error for unsupported column options
 fn get_column_info(opts: &[ast::ColumnOptionDef]) -> DBResult<(bool, bool)> {
     let mut nullable = true;
     let mut unique = false;
@@ -46,12 +43,6 @@ impl SQLExecutor {
     ///
     /// # Arguments
     /// * `create_table` - Parsed CREATE TABLE statement
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Duplicate table names
-    /// - Unsupported column types/options
-    /// - Invalid column definitions
     pub(super) fn execute_create_table(&mut self, create_table: &ast::CreateTable) -> DBResult<()> {
         let table_name = create_table.name.to_string();
 

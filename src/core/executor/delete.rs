@@ -11,12 +11,6 @@ impl SQLExecutor {
     ///
     /// # Arguments
     /// * `delete` - Parsed DELETE statement
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Table not found
-    /// - Unsupported table types (only simple tables supported)
-    /// - Invalid conditions
     pub(super) fn execute_delete(&mut self, delete: &ast::Delete) -> DBResult<()> {
         let tables = match &delete.from {
             ast::FromTable::WithFromKeyword(tables) => tables,
@@ -37,7 +31,7 @@ impl SQLExecutor {
                 DBSingleError::OtherError(format!("table not found: {}", table_name))
             })?;
             let row_to_delete = table.get_row_satisfying_cond(delete.selection.as_ref())?;
-            table.delete_row(&row_to_delete)?;
+            table.delete_rows(&row_to_delete)?;
         }
 
         Ok(())

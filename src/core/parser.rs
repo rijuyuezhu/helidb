@@ -26,9 +26,6 @@ impl SQLParser {
     /// # Returns
     /// Vector of parsed statements or error
     ///
-    /// # Errors
-    /// Returns error if SQL syntax is invalid
-    ///
     /// # Example
     /// ```
     /// # use simple_db::core::parser::SQLParser;

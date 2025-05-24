@@ -13,10 +13,6 @@ use bincode;
 /// # Returns
 ///
 /// The loaded database or an error if the operation fails.
-///
-/// # Errors
-///
-/// This function returns an error if reading from the provided reader fails or if decoding the data fails.
 pub fn load_database_from<R>(mut reader: R) -> DBResult<Database>
 where
     R: std::io::Read,
@@ -58,10 +54,6 @@ where
 ///
 /// * `writer` - The writer to which the database will be written.
 /// * `database` - The database to be written.
-///
-/// # Errors
-///
-/// This function returns an error if writing to the provided writer fails or if encoding the data fails.
 pub fn write_database_to<W>(mut writer: W, database: &Database) -> DBResult<()>
 where
     W: std::io::Write,

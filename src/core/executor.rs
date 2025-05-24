@@ -67,11 +67,6 @@ impl SQLExecutor {
     /// # Arguments
     /// * `statement` - Parsed SQL statement to execute
     /// * `executor_state` - Mutable state to track execution progress and output
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Unsupported statement types
-    /// - Execution failures
     fn execute_statement(
         &mut self,
         statement: &ast::Statement,

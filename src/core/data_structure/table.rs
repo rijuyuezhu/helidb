@@ -91,9 +91,6 @@ impl Table {
     ///
     /// # Returns
     /// Result containing the evaluated Value or error
-    ///
-    /// # Errors
-    /// Returns error for unsupported expressions or type mismatches
     pub fn calc_expr_for_row(&self, row: &[Value], expr: &ast::Expr) -> DBResult<Value> {
         use ast::Expr;
         Ok(match expr {
@@ -292,11 +289,6 @@ impl Table {
     ///
     /// # Returns
     /// Index of the newly inserted row
-    ///
-    /// # Errors
-    /// Returns error if:
-    /// - Row length doesn't match column count
-    /// - Constraints are violated (nullability, uniqueness)
     pub fn insert_row(&mut self, row: Vec<Value>) -> DBResult<usize> {
         if row.len() != self.columns_info.len() {
             Err(DBSingleError::OtherError(format!(
@@ -315,7 +307,7 @@ impl Table {
     ///
     /// # Arguments
     /// * `row_idxs` - Indices of rows to delete
-    pub fn delete_row(&mut self, row_idxs: &[usize]) -> DBResult<()> {
+    pub fn delete_rows(&mut self, row_idxs: &[usize]) -> DBResult<()> {
         let row_idxs_to_delete = row_idxs
             .iter()
             .copied()
@@ -331,13 +323,43 @@ impl Table {
         Ok(())
     }
 
+    /// Updates rows by their indices.
+    ///
+    /// # Arguments
+    /// * `row_idxs` - Indices of rows to update
+    /// * `assignments` - List of assignments to apply
+    pub fn update_rows(&mut self, row_idxs: &[usize], assignments: &[ast::Assignment]) -> DBResult<()> {
+
+        for &row_idx in row_idxs {
+            let orig_row = self.rows[row_idx].clone();
+            for ast::Assignment {
+                target,
+                value: expr,
+            } in assignments
+            {
+                let ast::AssignmentTarget::ColumnName(column_name) = target else {
+                    Err(DBSingleError::UnsupportedOPError(
+                        "only support column name".into(),
+                    ))?
+                };
+                let column_name = column_name.to_string();
+
+                let index = self.get_column_index(&column_name).ok_or_else(|| {
+                    DBSingleError::OtherError(format!("column not found: {}", column_name))
+                })?;
+
+                let value = self.calc_expr_for_row(&orig_row, expr)?;
+                self.check_column_with_value(index, &value, Some(row_idx))?;
+                self.rows[row_idx][index] = value;
+            }
+        }
+        Ok(())
+    }
+
     /// Sorts table rows according to ORDER BY clauses.
     ///
     /// # Arguments
     /// * `keys` - Pairs of (expression, is_ascending) defining sort order
-    ///
-    /// # Errors
-    /// Returns error if expressions evaluate to incompatible types
     pub fn convert_order_by(&mut self, keys: &[(&ast::Expr, bool)]) -> DBResult<()> {
         let mut cached_entries = vec![];
 

@@ -17,11 +17,6 @@ use std::fmt::Write;
 /// # Arguments
 /// * `table` - Table to sort
 /// * `order_by` - Optional ORDER BY clauses
-///
-/// # Errors
-/// Returns error for:
-/// - Unsupported ORDER BY types
-/// - Invalid sort expressions
 fn execute_order_by(table: &mut Table, order_by: &Option<ast::OrderBy>) -> DBResult<()> {
     let order_by = match order_by.as_ref().map(|x| &x.kind) {
         Some(x) => x,
@@ -55,12 +50,6 @@ impl SQLExecutor {
     ///
     /// # Returns
     /// Reference to source table
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Multiple tables in FROM
-    /// - Unsupported table types
-    /// - Table not found
     fn parse_table_from_select(&self, select: &ast::Select) -> DBResult<&Table> {
         match select.from.len() {
             0 => Ok(Table::get_dummy()),
@@ -96,12 +85,6 @@ impl SQLExecutor {
     ///
     /// # Returns
     /// New table containing query results
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Unsupported projection types
-    /// - Invalid expressions
-    /// - Filter evaluation failures
     fn get_query_table(
         &self,
         table: &Table,
@@ -164,12 +147,6 @@ impl SQLExecutor {
     /// # Arguments
     /// * `query` - Parsed query to execute
     /// * `executor_state` - Current executor state for evaluation context
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Non-SELECT queries
-    /// - Unsupported query features
-    /// - Evaluation failures
     pub(super) fn execute_query(
         &mut self,
         query: &ast::Query,

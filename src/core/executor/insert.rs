@@ -16,9 +16,6 @@ use std::collections::HashSet;
 ///
 /// # Returns
 /// Parsed Value or error
-///
-/// # Errors
-/// Returns error for unsupported expression types
 fn insert_parse_expr(expr: &ast::Expr) -> DBResult<Value> {
     Table::get_dummy().calc_expr_for_row(&[], expr)
 }
@@ -30,11 +27,6 @@ fn insert_parse_expr(expr: &ast::Expr) -> DBResult<Value> {
 ///
 /// # Returns
 /// Vector of rows (each a vector of Values)
-///
-/// # Errors
-/// Returns error for:
-/// - Non-VALUES queries
-/// - Invalid expressions in VALUES
 fn insert_parse_query(query: &ast::Query) -> DBResult<Vec<Vec<Value>>> {
     let ast::SetExpr::Values(values) = query.body.as_ref() else {
         Err(DBSingleError::UnsupportedOPError(
@@ -63,12 +55,6 @@ impl SQLExecutor {
     /// - Table to insert into
     /// - Query containing values
     /// - Column names specified in INSERT
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Unsupported table types
-    /// - Missing source query
-    /// - Table not found
     fn parse_insert<'a, 'b>(
         &'a mut self,
         insert: &'b ast::Insert,
@@ -102,13 +88,6 @@ impl SQLExecutor {
     ///
     /// # Arguments
     /// * `insert` - Parsed INSERT statement
-    ///
-    /// # Errors
-    /// Returns error for:
-    /// - Column count/value count mismatch
-    /// - Duplicate columns
-    /// - Invalid values
-    /// - Constraint violations
     pub(super) fn execute_insert(&mut self, insert: &ast::Insert) -> DBResult<()> {
         let (table, query, columns_indicator) = self.parse_insert(insert)?;
 
