@@ -9,11 +9,33 @@ use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 use std::collections::HashSet;
 
+/// Parses an expression and evaluates it against a dummy row.
+///
+/// # Arguments
+/// * `expr` - The expression to parse
+///
+/// # Returns
+/// Evaluated value of the expression
+///
+/// # Errors
+/// Returns an error if the expression cannot be parsed or evaluated.
 fn parse_expr(expr: &ast::Expr) -> DBResult<Value> {
     Table::get_dummy().calc_expr_for_row(&[], expr)
 }
 
-pub fn parse_raw_row_and_rearrange(
+/// Parses a raw row of expressions and rearranges them according to the provided column indicators.
+///
+/// # Arguments
+/// * `table` - The table structure containing column definitions
+/// * `raw_row` - The raw row of expressions to parse
+/// * `columns_indicator` - The list of column names indicating the order of values
+///
+/// # Returns
+/// A vector of values representing the parsed row, rearranged according to column indicators.
+///
+/// # Errors
+/// Returns an error if the number of values does not match the number of columns, or if a column is not found.
+pub(super) fn parse_raw_row_and_rearrange(
     table: &Table,
     raw_row: &[ast::Expr],
     columns_indicator: &[String],

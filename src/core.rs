@@ -1,10 +1,9 @@
-//! Core database functionality including parsing, execution and data structures.
+//! Core database engine components.
 //!
-//! This module contains:
-//! - Data structures for tables, columns and values
-//! - SQL statement parsing
-//! - Query execution logic
-//! - Storage management for persistent data
+//! Organized into:
+//! - Data structures (`Database`, `Table`, `Value`)
+//! - SQL execution pipeline
+//! - Storage management
 
 pub mod data_structure;
 pub mod executor;

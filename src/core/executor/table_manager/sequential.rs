@@ -3,6 +3,7 @@ use crate::core::data_structure::{ColumnInfo, Table, Value};
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
 
+/// A table manager that inserts rows sequentially.
 pub struct SequentialTableManager;
 
 impl SequentialTableManager {

@@ -1,7 +1,19 @@
-//! Error types and handling for database operations.
+//! Database error types and handling.
 //!
-//! Provides structured error types and utilities for error handling
-//! throughout the database system.
+//! # Example
+//! ```
+//! use simple_db::error::{DBResult, DBSingleError};
+//!
+//! fn validate_input(input: &str) -> DBResult<()> {
+//!     if input.is_empty() {
+//!         Err(DBSingleError::RequiredError("Input cannot be empty".into()))?;
+//!     }
+//!     Ok(())
+//! }
+//!
+//! assert!(validate_input("").is_err());
+//! assert!(validate_input("test").is_ok());
+//! ```
 
 use sqlparser;
 use sqlparser::parser::ParserError;
@@ -86,6 +98,18 @@ impl DBError {
     ///
     /// # Arguments
     /// * `other` - Error to merge into this one
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use simple_db::error::{DBError, DBSingleError};
+    /// let mut err1 = DBError::from(DBSingleError::RequiredError("First error".into()));
+    /// let err2 = DBSingleError::OtherError("Second error".into());
+    /// err1.join(err2.into());
+    ///
+    /// assert_eq!(err1.errors.len(), 2);
+    /// assert_eq!(err1.to_string(), "Error: First error\nOtherError: Second error\n");
+    /// ```
     pub fn join(&mut self, other: DBError) {
         self.errors.extend(other.errors);
     }

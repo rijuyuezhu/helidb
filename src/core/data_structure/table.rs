@@ -12,11 +12,13 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// Represents a database table with rows and columns.
 #[derive(Debug, Clone, Decode, Encode)]
 pub struct Table {
-    /// All rows in the table, with row number increasing
+    /// All rows in the table, with row number increasing. None indicates a deleted row.
     pub rows: BTreeMap<usize, Option<Vec<Value>>>,
+    /// Accumulator for the next row index to be used.
     pub row_idx_acc: usize,
+    /// Total number of rows currently in the table.
     pub row_num: usize,
-
+    /// Set of unique values for each column, used for indexing and constraints.
     pub columns_values: Vec<HashSet<Value>>,
     /// Metadata about each column
     pub columns_info: Vec<ColumnInfo>,
@@ -45,7 +47,7 @@ impl Table {
         }
     }
 
-    /// Gets a static dummy table instance for testing/placeholder purposes.
+    /// Gets a static dummy table instance (one line) for testing/placeholder purposes.
     pub fn get_dummy() -> &'static Self {
         lazy_static! {
             static ref DUMMY: Table = Table {
@@ -85,21 +87,19 @@ impl Table {
     ///
     /// # Arguments
     /// * `column_index` - Index of the column
-    ///
-    /// # Panics
-    /// If index is out of bounds
     pub fn get_column_info(&self, column_index: usize) -> &ColumnInfo {
         &self.columns_info[column_index]
     }
 
     /// Evaluates a SQL expression against a row of values.
+    /// In fact only `self.columns_rmap` is used to determine the column index,
     ///
     /// # Arguments
     /// * `row` - Row values to evaluate against
     /// * `expr` - SQL expression to evaluate
     ///
     /// # Returns
-    /// Result containing the evaluated Value or error
+    /// The evaluated [`Value`].
     pub fn calc_expr_for_row(&self, row: &[Value], expr: &ast::Expr) -> DBResult<Value> {
         use ast::Expr;
         Ok(match expr {
@@ -210,6 +210,17 @@ impl Table {
         })
     }
 
+    /// Checks if a row satisfies a given condition (SQL expression).
+    /// In fact only `self.columns_rmap` is used to determine the column index.
+    ///
+    /// # Arguments
+    /// * `row` - Row values to check against the condition
+    /// * `cond` - Optional SQL expression to evaluate as the condition
+    ///
+    /// # Returns
+    /// True if the row satisfies the condition, false otherwise.
+    ///
+    /// If `cond` is None, always returns true.
     pub fn is_row_satisfy_cond(&self, row: &[Value], cond: Option<&ast::Expr>) -> DBResult<bool> {
         Ok(match cond {
             Some(expr) => self
@@ -220,20 +231,36 @@ impl Table {
         })
     }
 
+    /// Iterates over existing rows (non-deleted).
+    ///
+    /// # Returns
+    /// An iterator over rows that are not None.
     pub fn existed_rows(&self) -> impl Iterator<Item = &Vec<Value>> {
         self.rows.values().filter_map(|r| r.as_ref())
     }
 
+    /// Iterates over existing rows (non-deleted) with mutable access.
+    ///
+    /// # Returns
+    /// An iterator over mutable references to rows that are not None.
     pub fn existed_rows_mut(&mut self) -> impl Iterator<Item = &mut Vec<Value>> {
         self.rows.values_mut().filter_map(|r| r.as_mut())
     }
 
+    /// Iterates over existing indexed rows (non-deleted) with their indices.
+    ///
+    /// # Returns
+    /// An iterator over tuples of `(index, &row)` for non-deleted rows.
     pub fn existed_indexed_rows(&self) -> impl Iterator<Item = (usize, &Vec<Value>)> {
         self.rows
             .iter()
             .filter_map(|(idx, r)| r.as_ref().map(|v| (*idx, v)))
     }
 
+    /// Iterates over existing indexed rows (non-deleted) with mutable access to the rows.
+    ///
+    /// # Returns
+    /// An iterator over tuples of `(index, &mut row)` for non-deleted rows.
     pub fn existed_indexed_rows_mut(&mut self) -> impl Iterator<Item = (usize, &mut Vec<Value>)> {
         self.rows
             .iter_mut()

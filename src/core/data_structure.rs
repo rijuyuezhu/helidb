@@ -1,8 +1,19 @@
-//! Core data structures for the database system.
+//! Core database structures - Database, Table, and Value types.
 //!
-//! Contains definitions for:
-//! - Database, table and column metadata
-//! - Value types and operations
+//! # Examples
+//! ```
+//! # use simple_db::core::data_structure::{Database, ColumnInfo, ColumnTypeSpecific};
+//! #
+//! // Create a simple database table
+//! let mut db = Database::new();
+//! let columns = vec![
+//!     ColumnInfo {name: "id".into(), nullable: false, unique: true, type_specific: ColumnTypeSpecific::Int { display_width: None }},
+//!     ColumnInfo {name: "name".into(), nullable: true, unique: false, type_specific: ColumnTypeSpecific::Varchar { max_length: 255 }},
+//! ];
+//!
+//! db.create_table("users".into(), columns);
+//! assert!(db.get_table("users").is_some());
+//! ```
 
 pub mod column_info;
 pub mod database;

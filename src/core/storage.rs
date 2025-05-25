@@ -1,18 +1,29 @@
-//! This module provides functionality for loading and writing a database from/to a binary format.
+//! Database persist storage using bincode serialization.
+//!
+//! # Example
+//! ```
+//! # use simple_db::core::storage::{load_database_from, write_database_to};
+//! use simple_db::core::data_structure::Database;
+//! use std::fs::File;
+//!
+//! let db = Database::new();
+//! let mut mem_file = Vec::<u8>::new();
+//! write_database_to(&mut mem_file, &db).unwrap();
+//!
+//! let loaded = load_database_from(&*mem_file).unwrap();
+//! ```
 
 use crate::core::data_structure::Database;
 use crate::error::{DBResult, DBSingleError};
 use bincode;
 
-/// Loads a database from a binary format.
+/// Loads a database from a binary reader.
 ///
 /// # Arguments
-///
-/// * `reader` - The reader from which the database will be loaded.
+/// * `reader` - Read source implementing std::io::Read
 ///
 /// # Returns
-///
-/// The loaded database or an error if the operation fails.
+/// Deserialized Database if no error occurs, otherwise an error.
 pub fn load_database_from<R>(mut reader: R) -> DBResult<Database>
 where
     R: std::io::Read,

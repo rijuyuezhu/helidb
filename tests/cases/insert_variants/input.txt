@@ -1,0 +1,24 @@
+CREATE TABLE test_table (
+    id INT PRIMARY KEY,
+    name VARCHAR(100)
+);
+
+INSERT INTO test_table (id, name) VALUES
+(1, 'Alice'),
+(2, 'Bob'),
+(3, 'Charlie');
+
+INSERT test_table (id, name) VALUES
+(4, 'David'),
+(5, 'Eve'),
+(6, 'Frank');
+
+INSERT INTO test_table (name, id) VALUES
+('Grace', 7),
+('Heidi', 8),
+('Ivan', 9);
+
+INSERT INTO test_table (id) VALUES
+(10),
+(11),
+(12);

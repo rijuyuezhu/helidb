@@ -1,16 +1,14 @@
-//! SQL statement execution functionality.
-//!
-//! Contains the SQLExecutor that handles execution of parsed SQL statements
-//! against the database.
+//! SQL statement execution and table management.
 
 mod create_table;
 mod delete;
 mod drop_table;
 mod insert;
 mod query;
-mod table_manager;
 mod update;
 mod utils;
+
+pub mod table_manager;
 
 use crate::core::data_structure::Database;
 use crate::core::parser::SQLParser;
@@ -25,6 +23,25 @@ use table_manager::{ParallelTableManager, SequentialTableManager, TableManager};
 /// SQLExecutor is responsible for executing SQL statements against a database.
 ///
 /// It handles parsing, execution, and output formatting.
+///
+/// # Example
+/// ```
+/// use simple_db::{SQLExecConfig, SQLExecutor};
+///
+/// let config = SQLExecConfig::new();
+/// let mut executor = SQLExecutor::build_from_config(config).unwrap();
+///
+/// // Execute multiple statements
+/// let result = executor.execute_sql(
+///     "CREATE TABLE users (id INT, name VARCHAR(255));
+///      INSERT INTO users VALUES (1, 'Alice');
+///      SELECT * FROM users;"
+/// );
+///
+/// assert_eq!(result.unwrap(), "| id  | name  |\n\
+///                              | --- | ----- |\n\
+///                              | 1   | Alice |\n")
+/// ```
 pub struct SQLExecutor {
     /// The database instance to execute SQL statements against.
     database: Database,
@@ -34,6 +51,10 @@ pub struct SQLExecutor {
     table_manager: Box<dyn TableManager>,
 }
 
+/// State for SQLExecutor to track execution progress and output.
+///
+/// This struct is used internally to manage the state during SQL execution,
+/// including the SQL statements being executed and the accumulated output results.
 #[derive(Default)]
 struct SQLExecutorState<'a> {
     /// The SQL statements to execute.
@@ -135,6 +156,13 @@ impl SQLExecutor {
         Ok(execute_state.output_buffer)
     }
 
+    /// Executes a series of SQL statements and returns a boolean indicating success or failure, along with the accumulated output.
+    ///
+    /// # Arguments
+    /// * `sql_statements` - A string containing multiple SQL statements to execute.
+    ///
+    /// # Returns
+    /// A tuple containing a boolean indicating success or failure, and the accumulated output of all executed statements.
     pub fn execute_sql_combine_outputs(&mut self, sql_statements: &str) -> (bool, String) {
         match self.execute_sql(sql_statements) {
             Ok(output) => (true, output),
@@ -142,6 +170,9 @@ impl SQLExecutor {
         }
     }
 
+    /// Write the current state of the database back to the storage path if write_back is enabled.
+    ///
+    /// This method is typically called after executing SQL statements to persist changes.
     pub fn write_back(&mut self) -> DBResult<()> {
         if !self.config.write_back {
             return Ok(());

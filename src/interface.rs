@@ -1,12 +1,39 @@
-//! Public interfaces for executing SQL statements and handling results.
+//! Public database interfaces - executor and configuration.
 
 pub use crate::core::executor::SQLExecutor;
 use crate::error::DBResult;
 use std::path::PathBuf;
 
-/// Configuration for executing SQL statements and handling output.
+/// Configuration for executing SQL statements
 ///
-/// Controls where query results and errors are written.
+/// Including storage path, reinitialization options, and parallel execution settings.
+///
+/// # Examples
+/// ```
+/// use simple_db::{SQLExecConfig, SQLExecutor};
+/// use std::path::PathBuf;
+///
+/// // Execute SQL
+/// let mut executor = SQLExecConfig::new().connect().unwrap();
+/// assert!(executor.execute_sql("CREATE TABLE test (id INT)").is_ok());
+///
+/// // Parallel execution configuration
+/// let mut executor = SQLExecConfig::new().parallel(true).connect().unwrap();
+/// assert!(executor.execute_sql("CREATE TABLE test (id INT)").is_ok());
+/// ```
+///
+/// ```no_run
+/// # use simple_db::{SQLExecConfig, SQLExecutor};
+/// # use std::path::PathBuf;
+/// // Set storage path
+/// let mut executor = SQLExecConfig::new()
+///     .storage_path(Some("/storage".into()))
+///     .connect()
+///     .unwrap();
+/// assert!(executor.execute_sql("CREATE TABLE test (id INT)").is_ok());
+/// // use
+/// ```
+#[derive(Debug, Clone)]
 pub struct SQLExecConfig {
     /// Path to the storage file, or None if not using file storage
     pub(crate) storage_path: Option<PathBuf>,
@@ -62,7 +89,7 @@ impl SQLExecConfig {
     /// Sets whether to write back to the storage path.
     ///
     /// # Arguments
-    /// * `write_back` - true to write back, false otherwise
+    /// * `write_back` - true to write back, false otherwise.
     ///
     /// # Returns
     /// Self for method chaining
@@ -72,6 +99,8 @@ impl SQLExecConfig {
     }
 
     /// Sets whether to execute queries in parallel.
+    /// Use the environment variable `RAYON_NUM_THREADS`
+    /// to control the number of threads used for parallel execution.
     ///
     /// # Arguments
     /// * `parallel` - true to enable parallel execution, false otherwise

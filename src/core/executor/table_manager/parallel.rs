@@ -6,6 +6,8 @@ use sqlparser::ast;
 use std::collections::HashSet;
 use std::sync::Mutex;
 
+/// A parallel implementation of the `TableManager` trait.
+/// This manager uses Rayon for parallel processing of table operations.
 pub struct ParallelTableManager;
 
 impl ParallelTableManager {

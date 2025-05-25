@@ -1,7 +1,12 @@
-//! SQL statement parsing functionality.
+//! SQL statement parsing using sqlparser.
 //!
-//! Wraps the sqlparser crate to provide SQL parsing capabilities
-//! for the database system.
+//! # Example
+//! ```
+//! use simple_db::core::parser::SQLParser;
+//!
+//! let parser = SQLParser::new();
+//! let statements = parser.parse("SELECT * FROM users").unwrap();
+//! ```
 
 use crate::error::DBResult;
 use sqlparser::ast::Statement;
@@ -13,7 +18,7 @@ use sqlparser::parser::Parser;
 pub struct SQLParser {}
 
 impl SQLParser {
-    /// Creates a new SQLParser instance.
+    /// Creates a new SQLParser instance with default configuration.
     pub fn new() -> Self {
         SQLParser::default()
     }
@@ -21,18 +26,15 @@ impl SQLParser {
     /// Parses a SQL string into AST statements.
     ///
     /// # Arguments
-    /// * `sql` - SQL string to parse
+    /// * `sql` - SQL string to parse (can contain multiple statements)
     ///
     /// # Returns
-    /// Vector of parsed statements or error
+    /// Vector of parsed `Statement` ASTs or error
     ///
-    /// # Example
-    /// ```
-    /// # use simple_db::core::parser::SQLParser;
-    /// #
-    /// let parser = SQLParser::new();
-    /// let statements = parser.parse("SELECT * FROM users").unwrap();
-    /// ```
+    /// # Errors
+    /// Returns `DBError` if parsing fails due to:
+    /// - Syntax errors
+    /// - Unsupported SQL features
     pub fn parse(&self, sql: &str) -> DBResult<Vec<Statement>> {
         let dialect = GenericDialect {};
         Ok(Parser::parse_sql(&dialect, sql)?)
