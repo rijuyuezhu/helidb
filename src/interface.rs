@@ -31,7 +31,6 @@ use std::path::PathBuf;
 ///     .connect()
 ///     .unwrap();
 /// assert!(executor.execute_sql("CREATE TABLE test (id INT)").is_ok());
-/// // use
 /// ```
 #[derive(Debug, Clone)]
 pub struct SQLExecConfig {
