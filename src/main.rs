@@ -32,6 +32,7 @@ impl Cli {
             .reinit(self.reinit)
             .write_back(!self.no_write_back)
             .parallel(self.parallel)
+            .parallel(true)
             .connect()
             .expect("Failed to connect to database")
     }

@@ -7,7 +7,7 @@ pub use parallel::ParallelTableManager;
 pub use sequential::SequentialTableManager;
 use sqlparser::ast;
 
-pub type CalcFunc<'a> = Box<dyn Fn(&[Value]) -> DBResult<Value> + 'a>;
+pub type CalcFunc<'a> = Box<dyn Fn(&[Value]) -> DBResult<Value> + Send + Sync + 'a>;
 
 pub trait TableManager {
     /// Inserts multiple rows into the table.
@@ -43,7 +43,7 @@ pub trait TableManager {
         cond: Option<&ast::Expr>,
     ) -> DBResult<()>;
 
-    fn construct_rows_from_calc_func(
+    fn construct_table_from_calc_func(
         &self,
         table: &Table,
         columns_info: Vec<ColumnInfo>,

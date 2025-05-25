@@ -15,6 +15,7 @@ pub struct Table {
     /// All rows in the table, with row number increasing
     pub rows: BTreeMap<usize, Option<Vec<Value>>>,
     pub row_idx_acc: usize,
+    pub row_num: usize,
 
     pub columns_values: Vec<HashSet<Value>>,
     /// Metadata about each column
@@ -37,6 +38,7 @@ impl Table {
         Table {
             rows: BTreeMap::new(),
             row_idx_acc: 0,
+            row_num: 0,
             columns_values: vec![HashSet::new(); columns_info.len()],
             columns_info,
             column_rmap,
@@ -49,6 +51,7 @@ impl Table {
             static ref DUMMY: Table = Table {
                 rows: [(0, Some(vec![]))].into_iter().collect(),
                 row_idx_acc: 1,
+                row_num: 1,
                 columns_values: vec![],
                 columns_info: vec![],
                 column_rmap: HashMap::new(),
@@ -59,7 +62,7 @@ impl Table {
 
     /// Gets the number of rows in the table.
     pub fn get_row_num(&self) -> usize {
-        self.rows.len()
+        self.row_num
     }
 
     /// Gets the number of columns in the table.

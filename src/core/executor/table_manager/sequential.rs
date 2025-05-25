@@ -9,6 +9,7 @@ impl SequentialTableManager {
     fn insert_row_unchecked(&self, table: &mut Table, row: Vec<Value>) -> DBResult<usize> {
         let row_number = table.row_idx_acc;
         table.row_idx_acc += 1;
+        table.row_num += 1;
         table.rows.insert(row_number, Some(row));
         Ok(row_number)
     }
@@ -50,12 +51,12 @@ impl SequentialTableManager {
         if !column_info.nullable && value_to_add.is_null() {
             Err(DBSingleError::RequiredError(format!(
                 "Field '{}' doesn't have a default value",
-                table.columns_info[col_idx].name
+                column_info.name
             )))?
         }
 
         // then check the uniqueness
-        if table.columns_info[col_idx].unique {
+        if column_info.unique {
             let is_duplicate;
             if value_to_delete
                 .as_ref()
@@ -118,6 +119,7 @@ impl TableManager for SequentialTableManager {
                 self.update_column_values(table_confine_header, col_idx, Some(value), None)?;
             }
             *opt_row = None;
+            table.row_num -= 1;
         }
         Ok(())
     }
@@ -168,7 +170,7 @@ impl TableManager for SequentialTableManager {
         Ok(())
     }
 
-    fn construct_rows_from_calc_func(
+    fn construct_table_from_calc_func(
         &self,
         table: &Table,
         columns_info: Vec<ColumnInfo>,
@@ -215,6 +217,14 @@ impl TableManager for SequentialTableManager {
             }
             cached_entries.push(row_entries);
         }
+
+        if rows.is_empty() {
+            table.rows = Default::default();
+            table.row_idx_acc = 0;
+            table.row_num = 0;
+            return Ok(());
+        }
+
         let row_start = &rows[0] as *const Vec<Value>;
 
         rows.sort_by(|a, b| {

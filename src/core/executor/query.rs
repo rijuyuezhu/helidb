@@ -121,7 +121,7 @@ impl SQLExecutor {
                 )))?,
             }
         }
-        let new_table = self.table_manager.construct_rows_from_calc_func(
+        let new_table = self.table_manager.construct_table_from_calc_func(
             table,
             columns_info,
             calc_funcs,
