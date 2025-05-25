@@ -8,7 +8,7 @@ use bincode::{Decode, Encode};
 use std::borrow::Cow;
 
 /// A non-null database value.
-#[derive(Debug, Clone, PartialEq, Eq, Decode, Encode)]
+#[derive(Debug, Clone, PartialEq, Eq, Decode, Encode, Hash)]
 pub enum ValueNotNull {
     /// 32-bit integer value
     Int(i32),
@@ -28,7 +28,7 @@ impl std::fmt::Display for ValueNotNull {
 /// A nullable database value.
 ///
 /// Wraps `ValueNotNull` in an Option to represent SQL NULL values.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Decode, Encode)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Decode, Encode, Hash)]
 pub struct Value(pub Option<ValueNotNull>);
 
 impl Value {

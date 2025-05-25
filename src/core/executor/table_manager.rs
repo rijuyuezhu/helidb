@@ -10,15 +10,18 @@ use sqlparser::ast;
 pub type CalcFunc<'a> = Box<dyn Fn(&[Value]) -> DBResult<Value> + 'a>;
 
 pub trait TableManager {
+    /// Inserts multiple rows into the table.
+    ///
+    /// # Arguments
+    /// * `table` - The table to insert rows into
+    /// * `raw_rows` - Rows to insert, each represented as a vector of expressions
+    /// * `columns_indicator` - Names of columns to insert data into
     fn insert_rows(
         &self,
         table: &mut Table,
         raw_rows: &[Vec<ast::Expr>],
         columns_indicator: Vec<String>,
     ) -> DBResult<()>;
-    fn insert_row_unchecked(&self, table: &mut Table, row: Vec<Value>) -> DBResult<usize>;
-
-    fn insert_row(&self, table: &mut Table, row: Vec<Value>) -> DBResult<usize>;
     /// Deletes rows by their indices.
     ///
     /// # Arguments

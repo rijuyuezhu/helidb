@@ -2,59 +2,10 @@ use super::TableManager;
 use crate::core::data_structure::{ColumnInfo, Table, Value};
 use crate::error::{DBResult, DBSingleError};
 use sqlparser::ast;
-use std::collections::HashSet;
 
 pub struct SequentialTableManager;
 
-impl TableManager for SequentialTableManager {
-    fn insert_rows(
-        &self,
-        table: &mut Table,
-        raw_rows: &[Vec<ast::Expr>],
-        columns_indicator: Vec<String>,
-    ) -> DBResult<()> {
-        use crate::core::executor::insert::parse_raw_row;
-        if columns_indicator.is_empty() {
-            // on columns_indicator in the INSERT statement
-            for raw_row in raw_rows {
-                let row = parse_raw_row(raw_row)?;
-                self.insert_row(table, row)?;
-            }
-        } else {
-            // reorder the values according to the columns_indicator
-            for raw_row in raw_rows {
-                let mut insert_values = parse_raw_row(raw_row)?;
-                if insert_values.len() != columns_indicator.len() {
-                    Err(DBSingleError::OtherError(format!(
-                        "number of columns given {} does not match number of values {}",
-                        columns_indicator.len(),
-                        insert_values.len()
-                    )))?
-                }
-                let mut row = vec![Value::from_null(); table.get_column_num()];
-                let mut index_used = HashSet::new();
-                for i in 0..columns_indicator.len() {
-                    let column_name = &columns_indicator[i];
-                    let index = table.get_column_index(column_name).ok_or_else(|| {
-                        DBSingleError::OtherError(format!("column {} not found", column_name))
-                    })?;
-
-                    if index_used.contains(&index) {
-                        Err(DBSingleError::OtherError(format!(
-                            "column {} is duplicated",
-                            column_name
-                        )))?
-                    }
-                    index_used.insert(index);
-
-                    std::mem::swap(&mut row[index], &mut insert_values[i]);
-                }
-                self.insert_row(table, row)?;
-            }
-        }
-        Ok(())
-    }
-
+impl SequentialTableManager {
     fn insert_row_unchecked(&self, table: &mut Table, row: Vec<Value>) -> DBResult<usize> {
         let row_number = table.row_idx_acc;
         table.row_idx_acc += 1;
@@ -70,30 +21,103 @@ impl TableManager for SequentialTableManager {
                 table.columns_info.len()
             )))?
         }
-        for (i, elem) in row.iter().enumerate() {
-            table.check_column_with_value(i, elem, None)?;
+        for (col_idx, value) in row.iter().enumerate() {
+            self.update_column_values(table, col_idx, None, Some(value))?;
         }
         self.insert_row_unchecked(table, row)
     }
 
-    fn delete_rows(&self, table: &mut Table, cond: Option<&ast::Expr>) -> DBResult<()> {
-        let mut row_to_delete = vec![];
-        for (&row_idx, row) in table
-            .rows
-            .iter()
-            .filter_map(|(idx, row)| row.as_ref().map(|r| (idx, r)))
-        {
-            if table.is_row_satisfy_cond(row, cond)? {
-                row_to_delete.push(row_idx);
+    fn update_column_values(
+        &self,
+        table: &mut Table,
+        col_idx: usize,
+        value_to_delete: Option<&Value>,
+        value_to_add: Option<&Value>,
+    ) -> DBResult<()> {
+        let column_info = &table.columns_info[col_idx];
+        let column_values = &mut table.columns_values[col_idx];
+
+        if value_to_add.is_none() {
+            if let Some(value_to_delete) = value_to_delete {
+                column_values.remove(value_to_delete);
+            }
+            return Ok(());
+        }
+
+        let value_to_add = value_to_add.unwrap();
+
+        // First check nullable
+        if !column_info.nullable && value_to_add.is_null() {
+            Err(DBSingleError::RequiredError(format!(
+                "Field '{}' doesn't have a default value",
+                table.columns_info[col_idx].name
+            )))?
+        }
+
+        // then check the uniqueness
+        if table.columns_info[col_idx].unique {
+            let is_duplicate;
+            if value_to_delete
+                .as_ref()
+                .is_some_and(|&value_to_delete| *value_to_delete == *value_to_add)
+            {
+                is_duplicate = false;
+            } else {
+                if column_values.contains(value_to_add) {
+                    is_duplicate = true;
+                } else {
+                    column_values.insert(value_to_add.clone());
+                    is_duplicate = false;
+                }
+                if !is_duplicate {
+                    if let Some(value_to_delete) = value_to_delete {
+                        column_values.remove(value_to_delete);
+                    }
+                }
+            }
+            if is_duplicate {
+                Err(DBSingleError::RequiredError(format!(
+                    "Duplicate entry '{}' for key 'PRIMARY'",
+                    value_to_add.to_string(),
+                )))?
             }
         }
-        for row_idx in &row_to_delete {
-            if table.rows.remove(row_idx).is_none() {
-                Err(DBSingleError::OtherError(format!(
-                    "row index {} not found",
-                    row_idx
-                )))?;
+        Ok(())
+    }
+}
+
+impl TableManager for SequentialTableManager {
+    fn insert_rows(
+        &self,
+        table: &mut Table,
+        raw_rows: &[Vec<ast::Expr>],
+        columns_indicator: Vec<String>,
+    ) -> DBResult<()> {
+        for raw_row in raw_rows {
+            let row = crate::core::executor::insert::parse_raw_row_and_rearrange(
+                table,
+                raw_row,
+                &columns_indicator,
+            )?;
+            self.insert_row(table, row)?;
+        }
+        Ok(())
+    }
+
+    fn delete_rows(&self, table: &mut Table, cond: Option<&ast::Expr>) -> DBResult<()> {
+        let table_confine_header = unsafe { &mut *(table as *mut Table) };
+        for opt_row in table.rows.values_mut() {
+            if opt_row.is_none() {
+                continue;
             }
+            if !table_confine_header.is_row_satisfy_cond(opt_row.as_ref().unwrap(), cond)? {
+                continue;
+            }
+            let row = opt_row.as_mut().unwrap();
+            for (col_idx, value) in row.iter().enumerate() {
+                self.update_column_values(table_confine_header, col_idx, Some(value), None)?;
+            }
+            *opt_row = None;
         }
         Ok(())
     }
@@ -104,18 +128,13 @@ impl TableManager for SequentialTableManager {
         assignments: &[ast::Assignment],
         cond: Option<&ast::Expr>,
     ) -> DBResult<()> {
-        let any_table = unsafe { &*(table as *const Table) };
-        for (&row_idx, row) in table
-            .rows
-            .iter_mut()
-            .filter_map(|(idx, row)| row.as_mut().map(|r| (idx, r)))
-        {
-            // safety here: any self is used to calculate expressions,
-            // where only the columns_info are used.
+        let table_confine_header = unsafe { &mut *(table as *mut Table) };
 
-            if !any_table.is_row_satisfy_cond(row, cond)? {
+        for row in table.existed_rows_mut() {
+            if !table_confine_header.is_row_satisfy_cond(row, cond)? {
                 continue;
             }
+
             let orig_row = row.clone();
 
             for ast::Assignment {
@@ -130,17 +149,25 @@ impl TableManager for SequentialTableManager {
                 };
                 let column_name = column_name.to_string();
 
-                let index = any_table.get_column_index(&column_name).ok_or_else(|| {
-                    DBSingleError::OtherError(format!("column not found: {}", column_name))
-                })?;
+                let col_idx = table_confine_header
+                    .get_column_index(&column_name)
+                    .ok_or_else(|| {
+                        DBSingleError::OtherError(format!("column not found: {}", column_name))
+                    })?;
 
-                let value = any_table.calc_expr_for_row(&orig_row, expr)?;
-                any_table.check_column_with_value(index, &value, Some(row_idx))?;
-                row[index] = value;
+                let value = table_confine_header.calc_expr_for_row(&orig_row, expr)?;
+                self.update_column_values(
+                    table_confine_header,
+                    col_idx,
+                    Some(&row[col_idx]),
+                    Some(&value),
+                )?;
+                row[col_idx] = value;
             }
         }
         Ok(())
     }
+
     fn construct_rows_from_calc_func(
         &self,
         table: &Table,
@@ -149,7 +176,7 @@ impl TableManager for SequentialTableManager {
         cond: Option<&ast::Expr>,
     ) -> DBResult<Table> {
         let mut new_table = Table::new(columns_info);
-        for row in table.rows.values().flat_map(|r| r.as_ref()) {
+        for row in table.existed_rows() {
             if !table.is_row_satisfy_cond(row, cond)? {
                 continue;
             }
@@ -165,6 +192,7 @@ impl TableManager for SequentialTableManager {
     fn convert_order_by(&self, table: &mut Table, keys: &[(&ast::Expr, bool)]) -> DBResult<()> {
         let mut rows = std::mem::take(&mut table.rows)
             .into_values()
+            .flatten()
             .collect::<Vec<_>>();
 
         let mut cached_entries = vec![];
@@ -172,7 +200,7 @@ impl TableManager for SequentialTableManager {
         // beforehand check: to avoid panic when sorting
         for &(expr, _) in keys {
             let mut row_entries = vec![];
-            for row in rows.iter().flat_map(|r| r.as_ref()) {
+            for row in rows.iter() {
                 let v = table.calc_expr_for_row(row, expr)?;
                 if row_entries
                     .last()
@@ -187,11 +215,11 @@ impl TableManager for SequentialTableManager {
             }
             cached_entries.push(row_entries);
         }
-        let row_start = &rows[0] as *const Option<Vec<Value>>;
+        let row_start = &rows[0] as *const Vec<Value>;
 
         rows.sort_by(|a, b| {
-            let a_idx = unsafe { (a as *const Option<Vec<Value>>).offset_from(row_start) } as usize;
-            let b_idx = unsafe { (b as *const Option<Vec<Value>>).offset_from(row_start) } as usize;
+            let a_idx = unsafe { (a as *const Vec<Value>).offset_from(row_start) } as usize;
+            let b_idx = unsafe { (b as *const Vec<Value>).offset_from(row_start) } as usize;
             for (expr_idx, &(_, is_asc)) in keys.iter().enumerate() {
                 let av = &cached_entries[expr_idx][a_idx];
                 let bv = &cached_entries[expr_idx][b_idx];
@@ -206,7 +234,7 @@ impl TableManager for SequentialTableManager {
             std::cmp::Ordering::Equal
         });
 
-        table.rows = rows.into_iter().enumerate().collect();
+        table.rows = rows.into_iter().map(Some).enumerate().collect();
         table.row_idx_acc = table.rows.len();
 
         Ok(())

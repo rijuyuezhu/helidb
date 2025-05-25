@@ -130,7 +130,9 @@ impl SQLExecutor {
                 "There are no results to be displayed."
             )?;
         }
-        result.map(|_| execute_state.output_buffer)
+        result?;
+        self.write_back()?;
+        Ok(execute_state.output_buffer)
     }
 
     pub fn execute_sql_combine_outputs(&mut self, sql_statements: &str) -> (bool, String) {
@@ -139,22 +141,17 @@ impl SQLExecutor {
             Err(e) => (false, e.to_string()),
         }
     }
-}
 
-impl Drop for SQLExecutor {
-    /// Drops the SQLExecutor, writing back the database to the storage path if configured.
-    ///
-    /// If `write_back` is false, no action is taken.
-    fn drop(&mut self) {
+    pub fn write_back(&mut self) -> DBResult<()> {
         if !self.config.write_back {
-            return;
+            return Ok(());
         }
         let Some(path) = &self.config.storage_path else {
-            return;
+            return Ok(());
         };
-        let Ok(file) = std::fs::File::create(path) else {
-            return;
-        };
-        let _ = storage::write_database_to(file, &self.database);
+
+        let file = std::fs::File::create(path)?;
+        storage::write_database_to(file, &self.database)?;
+        Ok(())
     }
 }

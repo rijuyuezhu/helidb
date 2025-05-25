@@ -7,7 +7,7 @@ use crate::error::{DBResult, DBSingleError};
 use bincode::{Decode, Encode};
 use lazy_static::lazy_static;
 use sqlparser::ast;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Represents a database table with rows and columns.
 #[derive(Debug, Clone, Decode, Encode)]
@@ -16,6 +16,7 @@ pub struct Table {
     pub rows: BTreeMap<usize, Option<Vec<Value>>>,
     pub row_idx_acc: usize,
 
+    pub columns_values: Vec<HashSet<Value>>,
     /// Metadata about each column
     pub columns_info: Vec<ColumnInfo>,
     /// Mapping from column names to their indices
@@ -36,6 +37,7 @@ impl Table {
         Table {
             rows: BTreeMap::new(),
             row_idx_acc: 0,
+            columns_values: vec![HashSet::new(); columns_info.len()],
             columns_info,
             column_rmap,
         }
@@ -47,6 +49,7 @@ impl Table {
             static ref DUMMY: Table = Table {
                 rows: [(0, Some(vec![]))].into_iter().collect(),
                 row_idx_acc: 1,
+                columns_values: vec![],
                 columns_info: vec![],
                 column_rmap: HashMap::new(),
             };
@@ -213,45 +216,24 @@ impl Table {
         })
     }
 
-    /// Validates a value against column constraints.
-    ///
-    /// # Arguments
-    /// * `col_idx` - Column index to validate against
-    /// * `value` - Value to validate
-    /// * `skip_row` - Optional row index to skip during uniqueness check
-    ///
-    /// # Returns
-    /// Ok(()) if valid, Err if constraints violated
-    pub fn check_column_with_value(
-        &self,
-        col_idx: usize,
-        value: &Value,
-        skip_row: Option<usize>,
-    ) -> DBResult<()> {
-        if !self.columns_info[col_idx].nullable && value.is_null() {
-            Err(DBSingleError::RequiredError(format!(
-                "Field '{}' doesn't have a default value",
-                self.columns_info[col_idx].name
-            )))?
-        }
-        if self.columns_info[col_idx].unique {
-            for (&i, orig_row) in self
-                .rows
-                .iter()
-                .filter_map(|(i, row)| row.as_ref().map(|r| (i, r)))
-            {
-                if skip_row.is_some_and(|s| s == i) {
-                    continue;
-                }
-                if orig_row[col_idx] == *value {
-                    Err(DBSingleError::RequiredError(format!(
-                        "Duplicate entry '{}' for key 'PRIMARY'",
-                        value.to_string(),
-                    )))?
-                }
-            }
-        }
-        Ok(())
+    pub fn existed_rows(&self) -> impl Iterator<Item = &Vec<Value>> {
+        self.rows.values().filter_map(|r| r.as_ref())
+    }
+
+    pub fn existed_rows_mut(&mut self) -> impl Iterator<Item = &mut Vec<Value>> {
+        self.rows.values_mut().filter_map(|r| r.as_mut())
+    }
+
+    pub fn existed_indexed_rows(&self) -> impl Iterator<Item = (usize, &Vec<Value>)> {
+        self.rows
+            .iter()
+            .filter_map(|(idx, r)| r.as_ref().map(|v| (*idx, v)))
+    }
+
+    pub fn existed_indexed_rows_mut(&mut self) -> impl Iterator<Item = (usize, &mut Vec<Value>)> {
+        self.rows
+            .iter_mut()
+            .filter_map(|(idx, r)| r.as_mut().map(|v| (*idx, v)))
     }
 }
 
