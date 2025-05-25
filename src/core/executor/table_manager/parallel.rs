@@ -245,6 +245,7 @@ impl TableManager for ParallelTableManager {
         let mut rows = std::mem::take(&mut table.rows)
             .into_values()
             .flatten()
+            .zip(0usize..)
             .collect::<Vec<_>>();
 
         let mut cached_entries = vec![];
@@ -253,7 +254,7 @@ impl TableManager for ParallelTableManager {
         for &(expr, _) in keys {
             let row_entries = rows
                 .par_iter()
-                .map(|row| table.calc_expr_for_row(row, expr))
+                .map(|(row, _)| table.calc_expr_for_row(row, expr))
                 .collect::<DBResult<Vec<_>>>()?;
             cached_entries.push(row_entries);
         }
@@ -274,22 +275,10 @@ impl TableManager for ParallelTableManager {
             }
         }
 
-        if rows.is_empty() {
-            table.rows = Default::default();
-            table.row_idx_acc = 0;
-            table.row_num = 0;
-            return Ok(());
-        }
-
-        let row_start = &rows[0] as *const Vec<Value> as usize;
-
-        rows.par_sort_by(|a, b| {
-            let row_start = row_start as *const Vec<Value>;
-            let a_idx = unsafe { (a as *const Vec<Value>).offset_from(row_start) } as usize;
-            let b_idx = unsafe { (b as *const Vec<Value>).offset_from(row_start) } as usize;
+        rows.par_sort_by(|(_, a_idx), (_, b_idx)| {
             for (expr_idx, &(_, is_asc)) in keys.iter().enumerate() {
-                let av = &cached_entries[expr_idx][a_idx];
-                let bv = &cached_entries[expr_idx][b_idx];
+                let av = &cached_entries[expr_idx][*a_idx];
+                let bv = &cached_entries[expr_idx][*b_idx];
                 let mut ord = av.partial_cmp(bv).unwrap();
                 if !is_asc {
                     ord = ord.reverse();
@@ -301,7 +290,7 @@ impl TableManager for ParallelTableManager {
             std::cmp::Ordering::Equal
         });
 
-        table.rows = rows.into_iter().map(Some).enumerate().collect();
+        table.rows = rows.into_iter().map(|(x, _)| Some(x)).enumerate().collect();
         table.row_idx_acc = table.rows.len();
 
         Ok(())

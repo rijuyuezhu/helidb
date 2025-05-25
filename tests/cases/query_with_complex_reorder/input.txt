@@ -1,0 +1,32 @@
+CREATE TABLE test (
+    x INT,
+    y INT,
+    z INT,
+    w INT
+);
+
+INSERT INTO test (x, y, z, w) VALUES
+    (0, 0, 0, 0),
+    (0, 0, 0, 1),
+    (0, 0, 1, 0),
+    (0, 0, 1, 1),
+    (0, 1, 0, 0),
+    (0, 1, 0, 1),
+    (0, 1, 1, 0),
+    (0, 1, 1, 1),
+    (1, 0, 0, 0),
+    (1, 0, 0, 1),
+    (1, 0, 1, 0),
+    (1, 0, 1, 1),
+    (1, 1, 0, 0),
+    (1, 1, 0, 1),
+    (1, 1, 1, 0),
+    (1, 1, 1, 1);
+
+SELECT * FROM test ORDER BY x;
+SELECT * FROM test ORDER BY y;
+SELECT * FROM test ORDER BY z;
+SELECT * FROM test ORDER BY w;
+
+SELECT * FROM test ORDER BY x DESC, y ASC;
+SELECT * FROM test ORDER BY y, z ASC, w DESC;
