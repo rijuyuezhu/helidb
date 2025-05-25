@@ -103,6 +103,7 @@ impl Table {
     pub fn calc_expr_for_row(&self, row: &[Value], expr: &ast::Expr) -> DBResult<Value> {
         use ast::Expr;
         Ok(match expr {
+            Expr::Nested(expr) => self.calc_expr_for_row(row, expr)?,
             Expr::Identifier(name) => {
                 if name.quote_style.is_some() {
                     Value::from_varchar(name.value.clone())
