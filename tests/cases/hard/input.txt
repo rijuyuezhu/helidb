@@ -1,0 +1,42 @@
+-- CREATE 5 tables, and insert 5 rows into each table
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (c INT, d INT);
+CREATE TABLE t3 (e INT, f INT);
+CREATE TABLE t4 (g INT, h INT);
+CREATE TABLE t5 (i INT, j INT);
+
+INSERT INTO t1 VALUES (1, 2), (3, 4), (5, 6), (7, 8), (9, 10);
+INSERT INTO t2 VALUES (11, 12), (13, 14), (15, 16), (17, 18), (19, 20);
+INSERT INTO t3 VALUES (21, 22), (23, 24), (25, 26), (27, 28), (29, 30);
+INSERT INTO t4 VALUES (31, 32), (33, 34), (35, 36), (37, 38), (39, 40);
+INSERT INTO t5 VALUES (41, 42), (43, 44), (45, 46), (47, 48), (49, 50);
+
+-- UPDATE randomly
+
+UPDATE t1 SET a = a + 1 WHERE a % 2 = 0;
+UPDATE t2 SET d = d + 1 WHERE c % 3 = 0;
+UPDATE t3 SET e = e + 1 WHERE f % 5 = 0;
+UPDATE t4 SET g = g + 1 WHERE h % 7 = 0;
+UPDATE t5 SET i = i + 1 WHERE j % 11 = 0;
+
+-- DELETE randomly
+
+DELETE FROM t1 WHERE a < 5;
+DELETE FROM t2 WHERE c > 15;
+DELETE FROM t3 WHERE e IS NOT NULL AND f < 25;
+DELETE FROM t4 WHERE g > 35;
+DELETE FROM t5 WHERE i < 1;
+
+-- DROP tables
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+-- QUERY
+
+SELECT * FROM t3 WHERE e > 20;
+SELECT * FROM t4 WHERE g < 35;
+SELECT * FROM t5 WHERE i > 40;
+
+

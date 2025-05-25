@@ -1,0 +1,14 @@
+CREATE TABLE test (
+    id INT PRIMARY KEY,
+    x INT
+);
+
+INSERT INTO test (id, x) VALUES (1, 10);
+UPDATE test SET x = 20 WHERE id = 1;
+
+SELECT * FROM test;
+
+INSERT INTO test (id, x) VALUES (2, 30);
+UPDATE test SET x = 15, id = 3 WHERE id = 1;
+
+SELECT * FROM test;

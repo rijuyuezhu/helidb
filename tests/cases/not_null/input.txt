@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS test_not_null (
+    id INT,
+    name VARCHAR(255) NOT NULL,
+    age INT NOT NULL
+);
+
+INSERT INTO test_not_null (id, name, age) VALUES
+(1, 'Alice', 30),
+(NULL, 'Bob', 25),
+(3, 'Charlie', NULL);
