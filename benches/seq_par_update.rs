@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
+use helidb::{SQLExecConfig, SQLExecutor};
 use lazy_static::lazy_static;
-use simple_db::{SQLExecConfig, SQLExecutor};
 use std::time::Instant;
 
 const STORAGE_PATH: &str = "/tmp/db_parallel_test";

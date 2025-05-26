@@ -2,7 +2,7 @@
 //!
 //! # Example
 //! ```
-//! use simple_db::error::{DBResult, DBSingleError};
+//! use helidb::error::{DBResult, DBSingleError};
 //!
 //! fn validate_input(input: &str) -> DBResult<()> {
 //!     if input.is_empty() {
@@ -102,7 +102,7 @@ impl DBError {
     /// # Examples
     ///
     /// ```
-    /// # use simple_db::error::{DBError, DBSingleError};
+    /// # use helidb::error::{DBError, DBSingleError};
     /// let mut err1 = DBError::from(DBSingleError::RequiredError("First error".into()));
     /// let err2 = DBSingleError::OtherError("Second error".into());
     /// err1.join(err2.into());
@@ -127,7 +127,7 @@ pub type DBResult<T> = Result<T, DBError>;
 ///
 /// # Examples
 /// ```
-/// # use simple_db::error::{join_result, DBResult, DBSingleError};
+/// # use helidb::error::{join_result, DBResult, DBSingleError};
 /// let ok: DBResult<()> = Ok(());
 /// let err: DBResult<()> = Err(DBSingleError::OtherError("test".into()).into());
 ///

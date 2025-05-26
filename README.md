@@ -26,7 +26,7 @@ A lightweight SQL database engine implementation in Rust, developed as part of t
 ### Library Usage
 
 ```rust
-use simple_db::{SQLExecConfig, SQLExecutor};
+use helidb::{SQLExecConfig, SQLExecutor};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configure database

@@ -2,7 +2,7 @@
 //!
 //! # Example
 //! ```
-//! use simple_db::core::parser::SQLParser;
+//! use helidb::core::parser::SQLParser;
 //!
 //! let parser = SQLParser::new();
 //! let statements = parser.parse("SELECT * FROM users").unwrap();

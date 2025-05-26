@@ -26,7 +26,7 @@ use table_manager::{ParallelTableManager, SequentialTableManager, TableManager};
 ///
 /// # Example
 /// ```
-/// use simple_db::{SQLExecConfig, SQLExecutor};
+/// use helidb::{SQLExecConfig, SQLExecutor};
 ///
 /// let config = SQLExecConfig::new();
 /// let mut executor = SQLExecutor::build_from_config(config).unwrap();

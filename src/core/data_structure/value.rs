@@ -83,7 +83,7 @@ impl Value {
     ///
     /// # Examples
     /// ```
-    /// # use simple_db::core::data_structure::value::Value;
+    /// # use helidb::core::data_structure::value::Value;
     /// #
     /// let v = Value::from_varchar("true".to_string());
     /// assert_eq!(v.try_to_bool().unwrap(), Some(true));

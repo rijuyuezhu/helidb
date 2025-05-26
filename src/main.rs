@@ -1,5 +1,5 @@
 use clap::Parser;
-use simple_db::{SQLExecConfig, SQLExecutor};
+use helidb::{SQLExecConfig, SQLExecutor};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]

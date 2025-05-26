@@ -10,7 +10,7 @@ use std::path::PathBuf;
 ///
 /// # Examples
 /// ```
-/// use simple_db::{SQLExecConfig, SQLExecutor};
+/// use helidb::{SQLExecConfig, SQLExecutor};
 /// use std::path::PathBuf;
 ///
 /// // Execute SQL
@@ -23,7 +23,7 @@ use std::path::PathBuf;
 /// ```
 ///
 /// ```no_run
-/// # use simple_db::{SQLExecConfig, SQLExecutor};
+/// # use helidb::{SQLExecConfig, SQLExecutor};
 /// # use std::path::PathBuf;
 /// // Set storage path
 /// let mut executor = SQLExecConfig::new()

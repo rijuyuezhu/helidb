@@ -2,7 +2,7 @@
 //!
 //! # Examples
 //! ```
-//! # use simple_db::core::data_structure::{Database, ColumnInfo, ColumnTypeSpecific};
+//! # use helidb::core::data_structure::{Database, ColumnInfo, ColumnTypeSpecific};
 //! #
 //! // Create a simple database table
 //! let mut db = Database::new();

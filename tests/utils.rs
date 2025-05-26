@@ -1,4 +1,4 @@
-use simple_db::SQLExecConfig;
+use helidb::SQLExecConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestResult {

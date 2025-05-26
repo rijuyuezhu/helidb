@@ -2,8 +2,8 @@
 //!
 //! # Example
 //! ```
-//! # use simple_db::core::storage::{load_database_from, write_database_to};
-//! use simple_db::core::data_structure::Database;
+//! # use helidb::core::storage::{load_database_from, write_database_to};
+//! use helidb::core::data_structure::Database;
 //! use std::fs::File;
 //!
 //! let db = Database::new();

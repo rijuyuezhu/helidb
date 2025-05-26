@@ -40,7 +40,7 @@
 //! ### Configuration Example
 //!
 //! ```rust
-//! use simple_db::{SQLExecConfig, SQLExecutor};
+//! use helidb::{SQLExecConfig, SQLExecutor};
 //!
 //! // Typical configuration
 //! let config = SQLExecConfig::new()
@@ -53,7 +53,7 @@
 //! Connect to the database using the [`connect`](SQLExecConfig::connect) method:
 //!
 //! ```rust
-//! # use simple_db::{SQLExecConfig, SQLExecutor};
+//! # use helidb::{SQLExecConfig, SQLExecutor};
 //! # let config = SQLExecConfig::new();
 //! let mut executor = config.connect().unwrap();
 //! ```
@@ -68,7 +68,7 @@
 //! Data persistence (if enabled in [`SQLExecConfig`]) occurs after SQL execution.
 //!
 //! ```rust
-//! # use simple_db::{SQLExecConfig, SQLExecutor};
+//! # use helidb::{SQLExecConfig, SQLExecutor};
 //!
 //! // Use default configuration
 //! let mut executor = SQLExecConfig::new().connect().unwrap();
@@ -84,7 +84,7 @@
 //! ## Complete Example
 //!
 //! ```rust
-//! use simple_db::{SQLExecConfig, SQLExecutor};
+//! use helidb::{SQLExecConfig, SQLExecutor};
 //! use std::path::PathBuf;
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
